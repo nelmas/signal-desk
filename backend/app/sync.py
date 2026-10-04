@@ -42,6 +42,7 @@ def _sync_sources(session: Session, topic: TopicConfig, report: SyncReport) -> N
         source = existing.get(cfg.key) or Source(topic=topic.key, key=cfg.key)
         source.name = cfg.name
         source.kind = cfg.kind
+        source.fetcher = cfg.fetcher
         source.url = cfg.url
         source.market = cfg.market
         source.language = cfg.language

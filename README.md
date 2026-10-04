@@ -24,8 +24,11 @@ uv sync
 copy ..\.env.example ..\.env      # then paste your Neon DATABASE_URL and Gemini key
 uv run alembic upgrade head        # create tables
 uv run signal-desk sync-topic      # load sources, companies, default settings
+uv run signal-desk collect         # fetch news once
 uv run signal-desk serve           # http://127.0.0.1:8000/api/health
 ```
+
+If `uv` isn't on your PATH, `python -m uv` works the same way.
 
 Run tests and lint:
 
@@ -49,6 +52,29 @@ Settings you changed in the app are never overwritten.
 
 A source can only be enabled once it has a `url` and a `terms_basis`, which records
 why we're allowed to use it.
+
+## News collection
+
+`signal-desk collect` reads every enabled source in `topic.yaml`. The `fetcher` field picks
+the reader: `rss`, `atom` or `finnhub_company_news`. Per run it:
+
+- skips items older than 7 days and items not in the topic's `article_languages`;
+- drops duplicates by canonical URL (tracking parameters removed), then by a hash of the
+  title and the start of the excerpt within 3 days, which catches syndicated copies;
+- stores the headline, a plain-text excerpt (max 1,000 characters), the link and a few
+  metadata fields. Never the full text;
+- records `last_fetched_at` or `last_error` per source. One failing feed doesn't stop the
+  rest, and a source missing its free key is skipped, not failed.
+
+`signal-desk prune` deletes articles older than `UNTAGGED_RETENTION_DAYS` that no tracked
+company was tagged in, which keeps the database inside Neon's free storage.
+
+### Running it hourly
+
+`.github/workflows/collect.yml` runs migrations, `sync-topic`, `collect` and `prune` at
+:17 past every hour. In the GitHub repo, go to Settings → Secrets and variables → Actions
+and add `DATABASE_URL`, `SEC_USER_AGENT` and `FINNHUB_API_KEY`. Then open the Actions tab,
+choose "Collect news" and press "Run workflow" to test it.
 
 ## Schema changes
 
@@ -85,7 +111,7 @@ free tier changes.
 ## Phases
 
 1. Project setup and database ✅
-2. News collection (RSS, MFN/Cision, news API, dedup, hourly)
+2. News collection (RSS, MFN/Cision, news API, dedup, hourly) ✅
 3. AI tagging (companies checked against ticker list, event type, sentiment, summary)
 4. Prices and the 0–100 signal score
 5. Story clustering and briefing generation with citations

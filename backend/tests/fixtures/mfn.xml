@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel xmlns:x="https://mfn.se/schemas/rss-ns-x/">
+    <title>MFN</title>
+    <item>
+      <title>Volvo receives order for 1,000 electric trucks</title>
+      <link>https://mfn.se/a/volvo/volvo-receives-order-for-1000-electric-trucks?utm_source=rss</link>
+      <description></description>
+      <guid isPermaLink="true">https://mfn.se/a/volvo/volvo-receives-order-for-1000-electric-trucks</guid>
+      <pubDate>Fri, 02 Oct 2026 07:30:00 +0000</pubDate>
+      <x:language>en</x:language>
+      <x:tag>:regulatory</x:tag>
+      <x:tag>sub:ci:order</x:tag>
+      <x:content type="html"><![CDATA[<div class="mfn-body"><ul><li><strong>Largest single order</strong></li></ul><p>Gothenburg &ndash; AB Volvo has received an order.</p><script>track()</script></div>]]></x:content>
+    </item>
+    <item>
+      <title>Volvo f&#229;r order p&#229; 1 000 eldrivna lastbilar</title>
+      <link>https://mfn.se/a/volvo/volvo-far-order-pa-1000-eldrivna-lastbilar</link>
+      <description></description>
+      <guid isPermaLink="true">https://mfn.se/a/volvo/volvo-far-order-pa-1000-eldrivna-lastbilar</guid>
+      <pubDate>Fri, 02 Oct 2026 07:30:00 +0000</pubDate>
+      <x:language>sv</x:language>
+      <x:content type="html"><![CDATA[<p>AB Volvo har f&aring;tt en order.</p>]]></x:content>
+    </item>
+    <item>
+      <title>Equinor-melding</title>
+      <link>https://mfn.se/a/equinor/melding</link>
+      <pubDate>Fri, 02 Oct 2026 07:30:00 +0000</pubDate>
+      <x:language>no</x:language>
+    </item>
+    <item>
+      <title>Old news from last month</title>
+      <link>https://mfn.se/a/old/old-news</link>
+      <pubDate>Mon, 07 Sep 2026 07:30:00 +0000</pubDate>
+    </item>
+  </channel>
+</rss>

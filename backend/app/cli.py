@@ -1,3 +1,5 @@
+from typing import Annotated
+
 import typer
 
 from app.config import get_settings
@@ -33,6 +35,46 @@ def sync_topic() -> None:
 
 
 @app.command()
+def collect(
+    source: Annotated[list[str] | None, typer.Option(help="Only these source keys.")] = None,
+) -> None:
+    """Fetch all enabled news sources and store new articles (run hourly)."""
+    from app.collect import collect as run_collect
+    from app.collect.fetchers import make_client
+    from app.db import get_sessionmaker
+
+    with get_sessionmaker()() as session, make_client() as client:
+        results = run_collect(session, client, get_topic(), get_settings(), source_keys=source)
+    for r in results:
+        if r.skipped:
+            status = f"skipped: {r.skipped}"
+        elif r.error:
+            status = f"ERROR {r.error}"
+        else:
+            status = (
+                f"{r.new} new, {r.duplicates} duplicates, {r.too_old} too old, "
+                f"{r.other_language} other language"
+            )
+        typer.echo(f"{r.key:<16} fetched {r.fetched:>4}  {status}")
+    # Fail the scheduled job only if nothing worked, so one flaky feed doesn't page you.
+    attempted = [r for r in results if not r.skipped]
+    if attempted and all(r.error for r in attempted):
+        raise typer.Exit(1)
+
+
+@app.command()
+def prune(days: int | None = None) -> None:
+    """Delete old articles that no tracked company was tagged in."""
+    from app.collect import prune_untagged
+    from app.db import get_sessionmaker
+
+    days = days if days is not None else get_settings().untagged_retention_days
+    with get_sessionmaker()() as session:
+        removed = prune_untagged(session, older_than_days=days)
+    typer.echo(f"Deleted {removed} untagged articles older than {days} days")
+
+
+@app.command()
 def serve(reload: bool = True) -> None:
     """Run the API server on http://localhost:8000."""
     import uvicorn
@@ -49,6 +91,8 @@ def show_config() -> None:
     typer.echo(f"topic: {s.topic} ({s.topics_dir})")
     typer.echo(f"llm: {s.llm_provider} / {s.llm_model}")
     typer.echo(f"gemini key: {'set' if s.gemini_api_key else 'missing'}")
+    typer.echo(f"finnhub key: {'set' if s.finnhub_api_key else 'missing'}")
+    typer.echo(f"sec user agent: {s.sec_user_agent or 'missing'}")
 
 
 if __name__ == "__main__":

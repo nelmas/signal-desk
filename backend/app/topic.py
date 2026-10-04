@@ -22,6 +22,8 @@ class SourceConfig(BaseModel):
     key: str
     name: str
     kind: Literal["rss", "api", "press_wire"]
+    # How to read it: a generic RSS/Atom parser, or a named API client.
+    fetcher: Literal["rss", "atom", "finnhub_company_news"] = "rss"
     url: str | None = None
     market: str | None = None
     language: str
@@ -79,6 +81,8 @@ class TopicConfig(BaseModel):
     description: str
     companies_file: str
     markets: list[Market]
+    # Articles in other languages are dropped at collection. Empty means keep all.
+    article_languages: list[str] = []
     sources: list[SourceConfig]
     event_types: list[EventType]
     scoring_weights: ScoringWeights

@@ -1,0 +1,4 @@
+[
+  {"category": "company", "datetime": 1791014400, "headline": "Apple unveils new chip", "id": 101, "image": "", "related": "AAPL", "source": "Reuters", "summary": "Apple Inc said on Friday...", "url": "https://www.reuters.com/tech/apple-chip?utm_campaign=x"},
+  {"category": "company", "datetime": 1791014400, "headline": "", "id": 102, "related": "AAPL", "source": "X", "summary": "", "url": "https://example.com/empty"}
+]

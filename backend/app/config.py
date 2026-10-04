@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     llm_model: str = "gemini-3.5-flash"
     gemini_api_key: str | None = None
 
+    # News sources. SEC rejects requests without a "Name email" User-Agent.
+    sec_user_agent: str | None = None
+    finnhub_api_key: str | None = None  # free key, no card: https://finnhub.io
+    # Articles no company was tagged in are deleted after this many days, so the
+    # database stays inside Neon's free storage.
+    untagged_retention_days: int = 14
+
     @field_validator("database_url")
     @classmethod
     def use_psycopg_driver(cls, url: str) -> str:

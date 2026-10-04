@@ -5,7 +5,9 @@ description = "Personal AI agent that reads stock news and writes a morning brie
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.14",
+    "defusedxml>=0.7",
     "fastapi>=0.115",
+    "httpx>=0.28",
     "psycopg[binary]>=3.2",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",

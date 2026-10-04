@@ -18,32 +18,65 @@ markets:
     timezone: America/New_York
     benchmark: S&P 500
 
-# Sources stay disabled until phase 2, where each URL is verified and its terms
-# are recorded in terms_basis. Enabled sources must have both (validated).
+# MFN carries Nordic releases in a dozen languages; the briefing reads these two.
+article_languages: [en, sv]
+
+# A source may only be enabled with a url and a terms_basis saying why we may use it
+# (validated). We store headline + short excerpt, always link back, poll at most hourly,
+# and never republish: the app is private.
 sources:
   - key: mfn
     name: MFN (Modular Finance News)
     kind: press_wire
+    fetcher: rss
+    url: https://mfn.se/all/a.rss?limit=200
     market: SE
-    language: sv
+    language: sv  # items carry their own language; this is the fallback
     is_press_release: true
+    enabled: true
+    terms_basis: >-
+      Public RSS feed offered by mfn.se for subscribing to listed companies' press
+      releases, which issuers publish for public distribution. No feed restrictions
+      published (checked 2026-10-04). Personal, private use; excerpt + link only.
   - key: cision-se
     name: Cision News Sweden
     kind: press_wire
+    fetcher: rss
+    url: https://news.cision.com/se/ListItems?format=rss&pageSize=100
     market: SE
     language: sv
     is_press_release: true
+    enabled: true
+    terms_basis: >-
+      Public RSS feed offered by news.cision.com for press releases issuers publish
+      for public distribution. No feed restrictions published; content policy
+      (news.cision.com/se/_editorial/contentpolicy) covers publishers only (checked
+      2026-10-04). Personal, private use; excerpt + link only.
   - key: sec-8k
     name: SEC EDGAR current 8-K filings
     kind: rss
+    fetcher: atom
+    url: https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=100&output=atom
     market: US
     language: en
     is_press_release: true
+    enabled: true
+    terms_basis: >-
+      US government data, free to access and reuse. Fair-access rules
+      (sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data):
+      declared User-Agent with contact email (SEC_USER_AGENT), max 10 requests/s.
   - key: finnhub-news
     name: Finnhub company news
     kind: api
+    fetcher: finnhub_company_news
+    url: https://finnhub.io/api/v1/company-news
     market: US
     language: en
+    enabled: true
+    terms_basis: >-
+      Finnhub free API plan: personal, non-commercial use, 60 calls/min, no
+      redistribution (finnhub.io/terms-of-service). One call per tracked US stock
+      per run. Articles belong to their outlets; we keep headline + summary + link.
 
 event_types:
   - {key: profit_warning, label: Profit warning, importance: 1.0}

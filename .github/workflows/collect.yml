@@ -1,0 +1,43 @@
+# Hourly news collection. Free: public repos get unlimited Actions minutes.
+# Needs repo secrets: DATABASE_URL, SEC_USER_AGENT, FINNHUB_API_KEY.
+name: Collect news
+
+on:
+  schedule:
+    - cron: "17 * * * *"  # off the hour; top-of-hour runs are often delayed
+  workflow_dispatch:  # "Run workflow" button for testing
+
+# Never run two collections at once.
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.23"
+          enable-cache: true
+      - run: uv sync --frozen --no-dev
+      - name: Apply database migrations
+        run: uv run alembic upgrade head
+      - name: Sync topic config
+        run: uv run signal-desk sync-topic
+      - name: Collect
+        run: uv run signal-desk collect
+      - name: Prune untagged articles
+        run: uv run signal-desk prune

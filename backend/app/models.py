@@ -111,6 +111,7 @@ class Source(Base):
     key: Mapped[str] = mapped_column(String(100))
     name: Mapped[str] = mapped_column(String(200))
     kind: Mapped[str] = mapped_column(String(20))
+    fetcher: Mapped[str] = mapped_column(String(50), server_default="rss")
     url: Mapped[str | None] = mapped_column(Text)
     market: Mapped[str | None] = mapped_column(String(10))
     language: Mapped[str] = mapped_column(String(5))
