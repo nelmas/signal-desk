@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   collect:
+    # Off until you add the repo variable COLLECT_ENABLED=true (after the secrets).
+    if: ${{ vars.COLLECT_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:

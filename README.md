@@ -73,7 +73,8 @@ company was tagged in, which keeps the database inside Neon's free storage.
 
 `.github/workflows/collect.yml` runs migrations, `sync-topic`, `collect` and `prune` at
 :17 past every hour. In the GitHub repo, go to Settings → Secrets and variables → Actions
-and add `DATABASE_URL`, `SEC_USER_AGENT` and `FINNHUB_API_KEY`. Then open the Actions tab,
+and add the secrets `DATABASE_URL`, `SEC_USER_AGENT` and `FINNHUB_API_KEY`. Then, on the
+Variables tab, add `COLLECT_ENABLED` = `true`; until then the job skips. Open the Actions tab,
 choose "Collect news" and press "Run workflow" to test it.
 
 ## Schema changes
