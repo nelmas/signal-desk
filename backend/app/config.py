@@ -1,0 +1,45 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+
+class Settings(BaseSettings):
+    """Process-level settings from environment / .env.
+
+    User-facing preferences (score weights, briefing time, ...) live in the
+    `settings` table instead, so they can be changed from the app.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=BACKEND_DIR.parent / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/signal_desk"
+    topic: str = "stocks"
+    topics_dir: Path = BACKEND_DIR / "topics"
+
+    # The AI must stay on free tiers: Gemini's free tier needs no billing account,
+    # so going over its limits fails a request instead of charging for it.
+    llm_provider: str = "gemini"
+    llm_model: str = "gemini-3.5-flash"
+    gemini_api_key: str | None = None
+
+    @field_validator("database_url")
+    @classmethod
+    def use_psycopg_driver(cls, url: str) -> str:
+        # Neon and most hosts hand out postgres:// or postgresql:// URLs.
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url.removeprefix(prefix)
+        return url
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

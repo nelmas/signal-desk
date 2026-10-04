@@ -1,0 +1,81 @@
+# Signal Desk topic: Swedish and US stocks.
+# Everything topic-specific lives here so the engine can run other topics later.
+
+key: stocks
+name: Stock news
+description: Daily briefing on news moving Nasdaq Stockholm and US-listed stocks.
+companies_file: companies.csv
+
+markets:
+  - key: SE
+    name: Nasdaq Stockholm
+    mics: [XSTO]
+    timezone: Europe/Stockholm
+    benchmark: OMXS30
+  - key: US
+    name: US exchanges
+    mics: [XNAS, XNYS]
+    timezone: America/New_York
+    benchmark: S&P 500
+
+# Sources stay disabled until phase 2, where each URL is verified and its terms
+# are recorded in terms_basis. Enabled sources must have both (validated).
+sources:
+  - key: mfn
+    name: MFN (Modular Finance News)
+    kind: press_wire
+    market: SE
+    language: sv
+    is_press_release: true
+  - key: cision-se
+    name: Cision News Sweden
+    kind: press_wire
+    market: SE
+    language: sv
+    is_press_release: true
+  - key: sec-8k
+    name: SEC EDGAR current 8-K filings
+    kind: rss
+    market: US
+    language: en
+    is_press_release: true
+  - key: finnhub-news
+    name: Finnhub company news
+    kind: api
+    market: US
+    language: en
+
+event_types:
+  - {key: profit_warning, label: Profit warning, importance: 1.0}
+  - {key: takeover_bid, label: Takeover bid, importance: 1.0}
+  - {key: trial_result, label: Clinical trial result, importance: 0.9}
+  - {key: earnings, label: Earnings report, importance: 0.8}
+  - {key: guidance, label: Guidance change, importance: 0.8}
+  - {key: acquisition, label: Acquisition, importance: 0.7}
+  - {key: regulatory, label: Regulatory decision, importance: 0.7}
+  - {key: capital_raise, label: Share issue / capital raise, importance: 0.7}
+  - {key: contract, label: Major contract / order, importance: 0.6}
+  - {key: management_change, label: Management change, importance: 0.5}
+  - {key: legal, label: Legal / litigation, importance: 0.5}
+  - {key: divestment, label: Divestment, importance: 0.5}
+  - {key: insider_trade, label: Insider trade, importance: 0.4}
+  - {key: buyback, label: Share buyback, importance: 0.4}
+  - {key: dividend, label: Dividend, importance: 0.3}
+  - {key: product, label: Product launch, importance: 0.3}
+  - {key: analyst_rating, label: Analyst rating change, importance: 0.3}
+  - {key: other, label: Other, importance: 0.1}
+
+# Defaults; the user can change these in Settings (stored in the settings table).
+scoring_weights:
+  news_volume: 0.35
+  event_importance: 0.30
+  sentiment_shift: 0.20
+  market_reaction: 0.15
+
+briefing:
+  send_time: "07:00"
+  timezone: Europe/Stockholm
+  language: en
+  max_stories: 5
+  max_sectors: 3
+  max_ideas: 3

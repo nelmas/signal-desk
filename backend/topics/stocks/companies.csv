@@ -1,0 +1,47 @@
+key,name,country,sector,aliases,listings,currency
+abb,ABB Ltd,CH,Industrials,ABB,ABB@XSTO,SEK
+alfa-laval,Alfa Laval AB,SE,Industrials,Alfa Laval,ALFA@XSTO,SEK
+assa-abloy,ASSA ABLOY AB,SE,Industrials,Assa Abloy,ASSA B@XSTO,SEK
+astrazeneca,AstraZeneca PLC,GB,Health Care,AstraZeneca,AZN@XSTO,SEK
+atlas-copco,Atlas Copco AB,SE,Industrials,Atlas Copco,ATCO A@XSTO|ATCO B@XSTO,SEK
+boliden,Boliden AB,SE,Materials,Boliden,BOL@XSTO,SEK
+electrolux,AB Electrolux,SE,Consumer Discretionary,Electrolux,ELUX B@XSTO,SEK
+epiroc,Epiroc AB,SE,Industrials,Epiroc,EPI A@XSTO|EPI B@XSTO,SEK
+ericsson,Telefonaktiebolaget LM Ericsson,SE,Information Technology,Ericsson|LM Ericsson,ERIC B@XSTO|ERIC A@XSTO,SEK
+essity,Essity AB,SE,Consumer Staples,Essity,ESSITY B@XSTO,SEK
+evolution,Evolution AB,SE,Consumer Discretionary,Evolution Gaming,EVO@XSTO,SEK
+getinge,Getinge AB,SE,Health Care,Getinge,GETI B@XSTO,SEK
+handelsbanken,Svenska Handelsbanken AB,SE,Financials,Handelsbanken|Svenska Handelsbanken,SHB A@XSTO|SHB B@XSTO,SEK
+hexagon,Hexagon AB,SE,Information Technology,Hexagon,HEXA B@XSTO,SEK
+hm,H & M Hennes & Mauritz AB,SE,Consumer Discretionary,H&M|Hennes & Mauritz,HM B@XSTO,SEK
+investor,Investor AB,SE,Financials,,INVE B@XSTO|INVE A@XSTO,SEK
+kinnevik,Kinnevik AB,SE,Financials,Kinnevik,KINV B@XSTO,SEK
+nibe,NIBE Industrier AB,SE,Industrials,NIBE,NIBE B@XSTO,SEK
+nordea,Nordea Bank Abp,FI,Financials,Nordea|Nordea Bank,NDA SE@XSTO,SEK
+saab,Saab AB,SE,Industrials,Saab,SAAB B@XSTO,SEK
+sandvik,Sandvik AB,SE,Industrials,Sandvik,SAND@XSTO,SEK
+sca,Svenska Cellulosa AB SCA,SE,Materials,SCA|Svenska Cellulosa,SCA B@XSTO,SEK
+seb,Skandinaviska Enskilda Banken AB,SE,Financials,SEB|Skandinaviska Enskilda Banken,SEB A@XSTO|SEB C@XSTO,SEK
+securitas,Securitas AB,SE,Industrials,Securitas,SECU B@XSTO,SEK
+skanska,Skanska AB,SE,Industrials,Skanska,SKA B@XSTO,SEK
+skf,AB SKF,SE,Industrials,SKF,SKF B@XSTO,SEK
+swedbank,Swedbank AB,SE,Financials,Swedbank,SWED A@XSTO,SEK
+tele2,Tele2 AB,SE,Communication Services,Tele2,TEL2 B@XSTO,SEK
+telia,Telia Company AB,SE,Communication Services,Telia,TELIA@XSTO,SEK
+volvo,AB Volvo,SE,Industrials,Volvo|Volvo Group,VOLV B@XSTO|VOLV A@XSTO,SEK
+apple,Apple Inc.,US,Information Technology,Apple,AAPL@XNAS,USD
+microsoft,Microsoft Corporation,US,Information Technology,Microsoft,MSFT@XNAS,USD
+nvidia,NVIDIA Corporation,US,Information Technology,Nvidia,NVDA@XNAS,USD
+broadcom,Broadcom Inc.,US,Information Technology,Broadcom,AVGO@XNAS,USD
+amazon,Amazon.com Inc.,US,Consumer Discretionary,Amazon,AMZN@XNAS,USD
+tesla,Tesla Inc.,US,Consumer Discretionary,Tesla,TSLA@XNAS,USD
+alphabet,Alphabet Inc.,US,Communication Services,Alphabet|Google,GOOGL@XNAS|GOOG@XNAS,USD
+meta,Meta Platforms Inc.,US,Communication Services,Meta|Meta Platforms|Facebook,META@XNAS,USD
+jpmorgan,JPMorgan Chase & Co.,US,Financials,JPMorgan|JPMorgan Chase|JP Morgan,JPM@XNYS,USD
+visa,Visa Inc.,US,Financials,Visa,V@XNYS,USD
+eli-lilly,Eli Lilly and Company,US,Health Care,Eli Lilly|Lilly,LLY@XNYS,USD
+unitedhealth,UnitedHealth Group Inc.,US,Health Care,UnitedHealth,UNH@XNYS,USD
+johnson-johnson,Johnson & Johnson,US,Health Care,J&J,JNJ@XNYS,USD
+exxonmobil,Exxon Mobil Corporation,US,Energy,ExxonMobil|Exxon,XOM@XNYS,USD
+procter-gamble,The Procter & Gamble Company,US,Consumer Staples,Procter & Gamble|P&G,PG@XNYS,USD
+coca-cola,The Coca-Cola Company,US,Consumer Staples,Coca-Cola,KO@XNYS,USD
