@@ -27,8 +27,15 @@ class Settings(BaseSettings):
     # The AI must stay on free tiers: Gemini's free tier needs no billing account,
     # so going over its limits fails a request instead of charging for it.
     llm_provider: str = "gemini"
-    llm_model: str = "gemini-3.5-flash"
     gemini_api_key: str | None = None
+    # Tagging makes dozens of calls a day, so it uses the model with the biggest free
+    # daily quota. The briefing is one call a day and uses the better writer.
+    llm_tag_model: str = "gemini-3.5-flash-lite"
+    llm_briefing_model: str = "gemini-3.8-flash"
+    # Stay under the tag model's free limits (Flash-Lite: 15/min, 500/day), with headroom.
+    llm_tag_requests_per_minute: int = 12
+    llm_tag_requests_per_day: int = 400
+    llm_tag_requests_per_run: int = 25
 
     # News sources. SEC rejects requests without a "Name email" User-Agent.
     sec_user_agent: str | None = None

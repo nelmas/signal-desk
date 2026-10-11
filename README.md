@@ -73,9 +73,31 @@ company was tagged in, which keeps the database inside Neon's free storage.
 
 `.github/workflows/collect.yml` runs migrations, `sync-topic`, `collect` and `prune` at
 :17 past every hour. In the GitHub repo, go to Settings → Secrets and variables → Actions
-and add the secrets `DATABASE_URL`, `SEC_USER_AGENT` and `FINNHUB_API_KEY`. Then, on the
+and add the secrets `DATABASE_URL`, `SEC_USER_AGENT`, `FINNHUB_API_KEY` and `GEMINI_API_KEY`. Then, on the
 Variables tab, add `COLLECT_ENABLED` = `true`; until then the job skips. Open the Actions tab,
 choose "Collect news" and press "Run workflow" to test it.
+
+## Article tagging
+
+`signal-desk tag` runs after each collection, in two steps:
+
+1. **Name match (free).** Each new article's headline and excerpt are checked against
+   every alias in `companies.csv`, as whole words ("visade" never matches "Visa").
+   Finnhub articles also match the stock they were fetched for. Articles that name no
+   tracked company are marked `no_match` and never reach the AI.
+2. **AI (Gemini free tier).** Matching articles go to `LLM_TAG_MODEL` in batches of 15.
+   For each one the model returns which candidate companies it is really about, the
+   event type, tone (-1 to 1), importance (0 to 1) and a one-line summary.
+
+The answer is checked before it is saved: companies the name match didn't find are
+dropped, unknown event types become `other`, and numbers are clamped. So the agent can
+never tag a company that isn't on the list. Articles that are only passing mentions are
+marked `irrelevant`; articles without a usable answer after 3 tries are marked `failed`.
+
+Free-tier limits: requests are spaced to stay under `LLM_TAG_REQUESTS_PER_MINUTE`, and
+each run and each day (counted from midnight Pacific, when Gemini resets) has a cap. Every
+call is logged in `ai_calls` with tokens and latency. A 429 (quota reached) ends the run;
+the remaining articles wait for the next run.
 
 ## Schema changes
 
@@ -106,14 +128,14 @@ The repo is public. Secrets (database URL, API keys, email password) go only in
 `.env` locally and in GitHub Secrets for Actions, never in the code.
 
 Do not add a dependency that needs a card on file. The AI provider is a setting
-(`LLM_PROVIDER`, `LLM_MODEL`) so it can move to another free provider if Gemini's
+(`LLM_PROVIDER`, `LLM_TAG_MODEL`, `LLM_BRIEFING_MODEL`) so it can move to another free provider if Gemini's
 free tier changes.
 
 ## Phases
 
 1. Project setup and database ✅
 2. News collection (RSS, MFN/Cision, news API, dedup, hourly) ✅
-3. AI tagging (companies checked against ticker list, event type, sentiment, summary)
+3. AI tagging (companies checked against ticker list, event type, sentiment, summary) ✅
 4. Prices and the 0–100 signal score
 5. Story clustering and briefing generation with citations
 6. Web app: briefing, watchlist, news feed, stock detail

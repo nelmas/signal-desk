@@ -63,6 +63,31 @@ def collect(
 
 
 @app.command()
+def tag() -> None:
+    """Tag new articles: tracked companies, event type, tone and a one-line summary."""
+    from app.ai import LLMClient
+    from app.collect.fetchers import make_client
+    from app.db import get_sessionmaker
+    from app.models import Setting
+    from app.tagging import tag_pending
+
+    settings = get_settings()
+    topic = get_topic()
+    with get_sessionmaker()() as session, make_client() as client:
+        briefing = session.get(Setting, "briefing")
+        language = (briefing.value if briefing else {}).get("language", topic.briefing.language)
+        key = settings.gemini_api_key
+        llm = LLMClient(client, session, key) if key else None
+        r = tag_pending(session, llm, topic, settings, language=language)
+    typer.echo(
+        f"checked {r.checked}: {r.no_match} name no tracked company, {r.tagged} tagged, "
+        f"{r.irrelevant} only passing mentions, {r.failed} failed; {r.requests} AI requests"
+    )
+    if r.stopped:
+        typer.echo(f"stopped early: {r.stopped}")
+
+
+@app.command()
 def prune(days: int | None = None) -> None:
     """Delete old articles that no tracked company was tagged in."""
     from app.collect import prune_untagged
@@ -89,7 +114,8 @@ def show_config() -> None:
     db = s.database_url.split("@")[-1]
     typer.echo(f"database: ...@{db}")
     typer.echo(f"topic: {s.topic} ({s.topics_dir})")
-    typer.echo(f"llm: {s.llm_provider} / {s.llm_model}")
+    typer.echo(f"llm: {s.llm_provider}")
+    typer.echo(f"  tag model: {s.llm_tag_model}, briefing model: {s.llm_briefing_model}")
     typer.echo(f"gemini key: {'set' if s.gemini_api_key else 'missing'}")
     typer.echo(f"finnhub key: {'set' if s.finnhub_api_key else 'missing'}")
     typer.echo(f"sec user agent: {s.sec_user_agent or 'missing'}")

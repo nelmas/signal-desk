@@ -129,6 +129,12 @@ class Source(Base):
 
 class Article(Base):
     __tablename__ = "articles"
+    __table_args__ = (
+        CheckConstraint(
+            "tag_status IN ('pending', 'no_match', 'tagged', 'irrelevant', 'failed')",
+            name="tag_status",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     topic: Mapped[str] = mapped_column(String(50))
@@ -143,6 +149,10 @@ class Article(Base):
     published_at: Mapped[dt.datetime] = mapped_column(index=True)
     fetched_at: Mapped[dt.datetime] = mapped_column(server_default=func.now())
     raw: Mapped[dict[str, Any] | None]
+    # pending -> no_match (names no tracked company), tagged, irrelevant (AI: only a
+    # passing mention) or failed (AI gave no usable answer after several tries).
+    tag_status: Mapped[str] = mapped_column(String(20), server_default="pending", index=True)
+    tag_attempts: Mapped[int] = mapped_column(SmallInteger, server_default="0")
 
     analysis: Mapped["ArticleAnalysis | None"] = relationship(back_populates="article")
 
