@@ -1,4 +1,4 @@
-# Hourly news collection and tagging. Free: public repos get unlimited Actions minutes.
+# Hourly news collection, tagging and scoring. Free: public repos get unlimited Actions minutes.
 # Needs repo secrets: DATABASE_URL, SEC_USER_AGENT, FINNHUB_API_KEY, GEMINI_API_KEY.
 name: Collect news
 
@@ -44,5 +44,7 @@ jobs:
         run: uv run signal-desk collect
       - name: Tag articles
         run: uv run signal-desk tag
+      - name: Score stocks
+        run: uv run signal-desk score
       - name: Prune untagged articles
         run: uv run signal-desk prune

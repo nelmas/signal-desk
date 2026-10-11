@@ -88,6 +88,25 @@ def tag() -> None:
 
 
 @app.command()
+def score(top: int = 10) -> None:
+    """Compute today's 0-100 signal score for every tracked company."""
+    from sqlalchemy import select
+
+    from app.db import get_sessionmaker
+    from app.models import Company
+    from app.scoring import compute_scores
+
+    with get_sessionmaker()() as session:
+        scores = compute_scores(session, get_topic())
+        names = dict(session.execute(select(Company.id, Company.name)).all())
+    typer.echo(f"Scored {len(scores)} companies. Top {top}:")
+    for s in sorted(scores, key=lambda s: s.score, reverse=True)[:top]:
+        factors = s.components["factors"]
+        detail = ", ".join(f"{k} {v['score']:.0f}" for k, v in factors.items())
+        typer.echo(f"{float(s.score):6.1f}  {names[s.company_id]:<28} {detail}")
+
+
+@app.command()
 def prune(days: int | None = None) -> None:
     """Delete old articles that no tracked company was tagged in."""
     from app.collect import prune_untagged

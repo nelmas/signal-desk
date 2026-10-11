@@ -107,6 +107,23 @@ each run and each day (counted from midnight Pacific, when Gemini resets) has a 
 call is logged in `ai_calls` with tokens and latency. A 429 (quota reached) ends the run;
 the remaining articles wait for the next run.
 
+## Signal score
+
+`signal-desk score` gives every tracked company a 0-100 score for today (Stockholm date),
+in plain code, no AI. Each factor scores 0-100:
+
+| Factor | Measures |
+|---|---|
+| `news_volume` | Weighted articles in the last 24 hours against the company's usual day (up to 30 days back). 8x normal scores 100 |
+| `event_importance` | The most important tagged event: half the event type's importance from `topic.yaml`, half the AI's rating |
+| `sentiment_shift` | Distance between the last 24 hours' tone and the company's usual tone |
+| `market_reaction` | Latest session's price move and volume against the previous ~30 sessions. Needs 10+ sessions of prices no older than 4 days |
+
+Articles are weighted by trust: `announced` 1.0, `reported` 0.6, `commentary` 0.25; an
+`affected` company counts half. The user's weights (Settings, else `topic.yaml`) combine
+the factors; a factor with no data is left out and the others are rescaled. Each row in
+`signal_scores` stores every factor's inputs, so the app can explain the number.
+
 ## Schema changes
 
 Edit `app/models.py`, then:
@@ -144,7 +161,7 @@ free tier changes.
 1. Project setup and database ✅
 2. News collection (RSS, MFN/Cision, news API, dedup, hourly) ✅
 3. AI tagging (companies checked against ticker list, event type, sentiment, summary) ✅
-4. Prices and the 0–100 signal score
+4. Prices and the 0–100 signal score (score ✅, prices pending a free source)
 5. Story clustering and briefing generation with citations
 6. Web app: briefing, watchlist, news feed, stock detail
 7. Settings and daily email
