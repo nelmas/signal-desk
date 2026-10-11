@@ -21,6 +21,8 @@ from app.universe import (
 
 STOCKS_DIR = Path(__file__).resolve().parent.parent / "topics" / "stocks"
 TOPIC = load_topic_from(STOCKS_DIR)
+# The Swedish fetch is off in topic.yaml (no free source yet); the code path is still tested.
+TOPIC.universe.se_finnhub_exchange = "ST"
 SETTINGS = Settings(sec_user_agent="Test test@example.com", finnhub_api_key="k")
 
 SEC_JSON = {

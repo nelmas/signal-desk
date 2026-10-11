@@ -114,8 +114,9 @@ Two separate lists:
 - **Universe:** every company the app can recognise in the news, so it can surface
   stocks you don't follow. `signal-desk sync-universe` (daily, `universe.yml`) loads
   US companies on Nasdaq and NYSE from SEC's free ticker file (the largest
-  `us_max_companies`), and Swedish companies on Nasdaq Stockholm, First North,
-  Spotlight and NGM from Finnhub's free symbol list. Names are cleaned
+  `us_max_companies`). Swedish companies come only from `companies.csv` for now:
+  Finnhub's free plan doesn't include the Stockholm symbol list, and the candidate free
+  source (ESMA's FIRDS register plus OpenFIGI for tickers) isn't built yet. Names are cleaned
   ("AMAZON COM INC" -> "amazon"); single-word names that are common words
   ("Target", "Block") are not used alone, and a name two companies share stays with
   the first (largest). Companies from `companies.csv` are "curated": they keep their

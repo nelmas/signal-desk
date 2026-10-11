@@ -25,7 +25,9 @@ universe:
   us_exchanges: [Nasdaq, NYSE]
   # SEC's list is ordered roughly by size; the smallest US names add mostly noise.
   us_max_companies: 1500
-  se_finnhub_exchange: ST
+  # Off: Finnhub's free plan only lists US symbols (401 for ST). Swedish companies come
+  # from companies.csv until a free source is added (ESMA FIRDS is the candidate).
+  se_finnhub_exchange: null
 
 # MFN carries Nordic releases in a dozen languages; the briefing reads these two.
 article_languages: [en, sv]
