@@ -177,61 +177,76 @@ def sync_universe(
 ) -> UniverseReport:
     """Upsert universe companies. Only markets in `markets` (fetched OK) can deactivate."""
     report = report or UniverseReport()
+    # Everything is loaded up front and written in bulk: the database may be an ocean
+    # away from the job (GitHub's US runners, Neon in Frankfurt), so per-company round
+    # trips would take many minutes.
     existing = session.scalars(select(Company).where(Company.topic == topic.key)).all()
+    by_id = {c.id: c for c in existing}
     by_cik = {c.cik: c for c in existing if c.cik}
-    by_listing = {
-        (listing.symbol, listing.mic): listing
-        for listing in session.scalars(
-            select(Listing).join(Company).where(Company.topic == topic.key)
-        )
-    }
-    alias_owner = {
-        a.alias_normalized: a.company_id
-        for a in session.scalars(
-            select(CompanyAlias).join(Company).where(Company.topic == topic.key)
-        )
-    }
+    listings = session.execute(
+        select(Listing.symbol, Listing.mic, Listing.company_id, Listing.is_primary)
+        .join(Company)
+        .where(Company.topic == topic.key)
+    ).all()
+    owner_of_listing = {(lst.symbol, lst.mic): lst.company_id for lst in listings}
+    has_primary = {lst.company_id for lst in listings if lst.is_primary}
+    alias_owner = dict(
+        session.execute(
+            select(CompanyAlias.alias_normalized, CompanyAlias.company_id)
+            .join(Company)
+            .where(Company.topic == topic.key)
+        ).all()
+    )
     keys = {c.key for c in existing}
+
+    # Pass 1: find or create each company (one bulk INSERT for the new ones).
+    plan: list[tuple[Company, UniverseCompany]] = []
+    with session.no_autoflush:
+        for uc in companies:
+            company = by_cik.get(uc.cik) if uc.cik else None
+            if company is None:
+                owner = next(
+                    (owner_of_listing[lst] for lst in uc.listings if lst in owner_of_listing), None
+                )
+                company = by_id.get(owner) if owner is not None else None
+            if company is None:
+                key = base = _slug(uc.name) or uc.listings[0][0].lower()
+                n = 2
+                while key in keys:
+                    key, n = f"{base}-{n}", n + 1
+                keys.add(key)
+                company = Company(
+                    topic=topic.key, key=key, name=uc.name, country=uc.country, origin="universe"
+                )
+                session.add(company)
+                report.created += 1
+            elif company.origin == "universe":
+                company.name = uc.name
+                company.active = True
+                report.updated += 1
+            if uc.cik and not company.cik:
+                company.cik = uc.cik
+            if uc.cik:
+                by_cik[uc.cik] = company
+            plan.append((company, uc))
+    session.flush()
+
+    # Pass 2: listings and aliases, now that every company has an id.
+    new_rows: list[Listing | CompanyAlias] = []
     seen: set[int] = set()
-
-    for uc in companies:
-        company = by_cik.get(uc.cik) if uc.cik else None
-        if company is None:
-            company = next(
-                (by_listing[lst].company for lst in uc.listings if lst in by_listing), None
-            )
-        if company is None:
-            key = base = _slug(uc.name) or uc.listings[0][0].lower()
-            n = 2
-            while key in keys:
-                key, n = f"{base}-{n}", n + 1
-            keys.add(key)
-            company = Company(
-                topic=topic.key, key=key, name=uc.name, country=uc.country, origin="universe"
-            )
-            session.add(company)
-            session.flush()
-            report.created += 1
-        elif company.origin == "universe":
-            company.name = uc.name
-            company.active = True
-            report.updated += 1
-        if uc.cik and not company.cik:
-            company.cik = uc.cik
-            by_cik[uc.cik] = company
+    for company, uc in plan:
         seen.add(company.id)
-
-        has_primary = any(lst.is_primary for lst in company.listings)
         for symbol, mic in uc.listings:
-            if (symbol, mic) in by_listing:
+            if (symbol, mic) in owner_of_listing:
                 continue
-            listing = Listing(
-                company_id=company.id, symbol=symbol, mic=mic, currency=uc.currency,
-                is_primary=not has_primary,
+            new_rows.append(
+                Listing(
+                    company_id=company.id, symbol=symbol, mic=mic, currency=uc.currency,
+                    is_primary=company.id not in has_primary,
+                )
             )
-            has_primary = True
-            session.add(listing)
-            by_listing[(symbol, mic)] = listing
+            has_primary.add(company.id)
+            owner_of_listing[(symbol, mic)] = company.id
             report.listings_added += 1
 
         if company.origin != "universe":
@@ -242,11 +257,12 @@ def sync_universe(
                 report.aliases_skipped += 1  # ambiguous: first (largest) company keeps it
                 continue
             if owner is None:
-                session.add(
+                new_rows.append(
                     CompanyAlias(company_id=company.id, alias=alias, alias_normalized=alias)
                 )
                 alias_owner[alias] = company.id
                 report.aliases_added += 1
+    session.add_all(new_rows)
 
     # Delisted: universe companies of a fetched market that no longer appear.
     # (Universe companies get their market's key as country.)

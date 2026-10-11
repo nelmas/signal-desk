@@ -2,7 +2,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -169,3 +169,21 @@ def test_failed_market_does_not_delist_it(db: Session) -> None:
     with httpx.Client(transport=httpx.MockTransport(sec_down)) as c:
         report = refresh_universe(db, c, TOPIC, SETTINGS)
     assert "US" in report.errors and report.deactivated == 0
+
+
+def test_sync_uses_a_handful_of_statements_not_one_per_company(db: Session) -> None:
+    """The job runs far from the database; per-company round trips took 12+ minutes."""
+    many = [
+        UniverseCompany(f"Example Holding {i} AB", "SE", "SEK", [(f"EX{i} B", "XSTO")])
+        for i in range(300)
+    ]
+    statements = []
+    engine = db.get_bind()
+    listen = lambda *args: statements.append(1)  # noqa: E731
+    event.listen(engine, "before_cursor_execute", listen)
+    try:
+        report = sync_universe(db, TOPIC, many, markets={"SE"})
+    finally:
+        event.remove(engine, "before_cursor_execute", listen)
+    assert report.created == 300 and report.listings_added == 300
+    assert len(statements) < 30

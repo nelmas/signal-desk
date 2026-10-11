@@ -187,50 +187,64 @@ def compute_scores(
     # Thousands of universe companies have no news on a given day; scoring only those
     # with recent news, plus the watchlist, keeps the free database small.
     candidates = set(tags) | set(session.scalars(select(TrackedStock.company_id)))
-    results = []
-    for company in session.scalars(
-        select(Company).where(
-            Company.topic == topic.key, Company.active, Company.id.in_(candidates)
-        )
-    ):
-        score, components = score_company(
-            tags.get(company.id, []),
-            now,
-            baseline_days,
-            weights,
-            _reaction(session, company.id, now),
-        )
-        values = {
-            "company_id": company.id,
-            "date": date,
-            "score": Decimal(str(score)),
-            "components": components,
-            "weights": weights,
-        }
-        session.execute(
-            insert(SignalScore)
-            .values(values)
-            .on_conflict_do_update(
-                index_elements=["company_id", "date"],
-                set_={k: values[k] for k in ("score", "components", "weights")},
+    company_ids = list(
+        session.scalars(
+            select(Company.id).where(
+                Company.topic == topic.key, Company.active, Company.id.in_(candidates)
             )
         )
-        results.append(SignalScore(**values))
-    session.commit()
-    return results
-
-
-def _reaction(session: Session, company_id: int, now: dt.datetime) -> dict | None:
-    prices = session.execute(
-        select(PriceDaily.date, PriceDaily.close, PriceDaily.volume)
-        .join(Listing, Listing.id == PriceDaily.listing_id)
-        .where(Listing.company_id == company_id, Listing.is_primary)
-        .order_by(PriceDaily.date.desc())
-        .limit(MIN_PRICE_HISTORY + 21)
-    ).all()[::-1]
-    # A move from last week is not a reaction to today's news.
-    if not prices or (now.date() - prices[-1].date).days > MAX_PRICE_AGE_DAYS:
-        return None
-    return market_reaction(
-        [float(p.close) for p in prices], [float(p.volume) if p.volume else None for p in prices]
     )
+    reactions = _reactions(session, company_ids, now)
+    rows = []
+    for company_id in company_ids:
+        score, components = score_company(
+            tags.get(company_id, []), now, baseline_days, weights, reactions.get(company_id)
+        )
+        rows.append(
+            {
+                "company_id": company_id,
+                "date": date,
+                "score": Decimal(str(score)),
+                "components": components,
+                "weights": weights,
+            }
+        )
+    # One statement for all rows: the job may run far from the database.
+    if rows:
+        stmt = insert(SignalScore).values(rows)
+        session.execute(
+            stmt.on_conflict_do_update(
+                index_elements=["company_id", "date"],
+                set_={k: stmt.excluded[k] for k in ("score", "components", "weights")},
+            )
+        )
+    session.commit()
+    return [SignalScore(**row) for row in rows]
+
+
+def _reactions(
+    session: Session, company_ids: list[int], now: dt.datetime
+) -> dict[int, dict | None]:
+    """Market reaction per company from its primary listing's recent prices, in one query."""
+    since = now.date() - dt.timedelta(days=(MIN_PRICE_HISTORY + 21) * 2)
+    history: dict[int, list] = defaultdict(list)
+    for row in session.execute(
+        select(Listing.company_id, PriceDaily.date, PriceDaily.close, PriceDaily.volume)
+        .join(Listing, Listing.id == PriceDaily.listing_id)
+        .where(
+            Listing.company_id.in_(company_ids), Listing.is_primary, PriceDaily.date >= since
+        )
+        .order_by(PriceDaily.date)
+    ):
+        history[row.company_id].append(row)
+    out: dict[int, dict | None] = {}
+    for company_id, prices in history.items():
+        prices = prices[-(MIN_PRICE_HISTORY + 21) :]
+        # A move from last week is not a reaction to today's news.
+        if (now.date() - prices[-1].date).days > MAX_PRICE_AGE_DAYS:
+            continue
+        out[company_id] = market_reaction(
+            [float(p.close) for p in prices],
+            [float(p.volume) if p.volume else None for p in prices],
+        )
+    return out
