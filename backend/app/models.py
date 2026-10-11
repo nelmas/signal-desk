@@ -164,13 +164,17 @@ class ArticleAnalysis(Base):
     __table_args__ = (
         CheckConstraint("sentiment BETWEEN -1 AND 1", name="sentiment_range"),
         CheckConstraint("importance BETWEEN 0 AND 1", name="importance_range"),
+        CheckConstraint("basis IN ('announced', 'reported', 'commentary')", name="basis"),
     )
 
     article_id: Mapped[int] = mapped_column(
         ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True
     )
     event_type: Mapped[str] = mapped_column(String(50), index=True)
-    sentiment: Mapped[Decimal] = mapped_column(Numeric(4, 3))
+    # announced: the company or a filing says so. reported: media, sources, analysts.
+    # commentary: opinion, roundup or rehash of known news. Scoring trusts them in that order.
+    basis: Mapped[str] = mapped_column(String(20), server_default="reported")
+    sentiment: Mapped[Decimal] = mapped_column(Numeric(4, 3))  # for the main subject company
     importance: Mapped[Decimal] = mapped_column(Numeric(4, 3))
     summary: Mapped[str] = mapped_column(Text)
     model: Mapped[str] = mapped_column(String(100))
@@ -184,6 +188,10 @@ class ArticleCompany(Base):
     """Verified article→company tags. Only rows that matched the ticker list exist."""
 
     __tablename__ = "article_companies"
+    __table_args__ = (
+        CheckConstraint("role IN ('subject', 'affected')", name="role"),
+        CheckConstraint("sentiment BETWEEN -1 AND 1", name="sentiment_range"),
+    )
 
     article_id: Mapped[int] = mapped_column(
         ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True
@@ -192,6 +200,10 @@ class ArticleCompany(Base):
         ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True, index=True
     )
     matched_alias: Mapped[str] = mapped_column(String(200))
+    # subject: the news is about this company. affected: it materially concerns it
+    # (e.g. the supplier whose orders were cut). Passing mentions are not stored.
+    role: Mapped[str] = mapped_column(String(20), server_default="subject")
+    sentiment: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))  # for this company
 
 
 # --- Market data & scoring ----------------------------------------------------

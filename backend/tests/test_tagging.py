@@ -57,9 +57,9 @@ class FakeGemini:
 
 def tag_all(article_id: int, keys: list[str]) -> dict[str, Any]:
     return {
-        "companies": keys,
+        "companies": [{"key": k, "role": "subject", "sentiment": 0.6} for k in keys],
         "event_type": "contract",
-        "sentiment": 0.6,
+        "basis": "announced",
         "importance": 0.7,
         "summary": "Company won an order.",
     }
@@ -162,14 +162,42 @@ def test_ai_cannot_add_companies_or_event_types(db: Session) -> None:
     article = add_article(db, "Volvo receives order")
 
     def invent(article_id: int, keys: list[str]) -> dict[str, Any]:
-        return {**tag_all(article_id, keys), "companies": [*keys, "tesla", "made-up-co"],
-                "event_type": "moon_landing", "sentiment": 7, "importance": -2}
+        companies = [{"key": k, "role": "boss", "sentiment": 7} for k in keys]
+        companies += [{"key": "tesla", "role": "subject", "sentiment": 1}, {"key": "made-up-co"}]
+        return {**tag_all(article_id, keys), "companies": companies,
+                "event_type": "moon_landing", "basis": "gossip", "importance": -2}
 
     run(db, FakeGemini(invent))
     assert company_keys(db, article) == {"volvo"}
     analysis = db.get(ArticleAnalysis, article.id)
-    assert analysis.event_type == "other"
+    assert analysis.event_type == "other" and analysis.basis == "reported"
     assert float(analysis.sentiment) == 1 and float(analysis.importance) == 0
+    tag = db.scalars(select(ArticleCompany).where(ArticleCompany.article_id == article.id)).one()
+    assert tag.role == "subject"
+
+
+def test_each_company_gets_its_own_role_and_tone(db: Session) -> None:
+    article = add_article(db, "Apple cuts orders; Broadcom shares fall")
+
+    def split(article_id: int, keys: list[str]) -> dict[str, Any]:
+        return {**tag_all(article_id, keys), "basis": "reported", "event_type": "operations",
+                "companies": [{"key": "broadcom", "role": "affected", "sentiment": -0.8},
+                              {"key": "apple", "role": "subject", "sentiment": -0.3}]}
+
+    run(db, FakeGemini(split))
+    tags = {
+        key: (role, float(s))
+        for key, role, s in db.execute(
+            select(Company.key, ArticleCompany.role, ArticleCompany.sentiment)
+            .join(ArticleCompany)
+            .where(ArticleCompany.article_id == article.id)
+        )
+    }
+    assert tags == {"apple": ("subject", -0.3), "broadcom": ("affected", -0.8)}
+    analysis = db.get(ArticleAnalysis, article.id)
+    # Article-level tone follows the main subject, not the first company listed.
+    assert float(analysis.sentiment) == -0.3
+    assert (analysis.basis, analysis.event_type) == ("reported", "operations")
 
 
 def test_passing_mentions_are_marked_irrelevant(db: Session) -> None:

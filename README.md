@@ -86,8 +86,16 @@ choose "Collect news" and press "Run workflow" to test it.
    Finnhub articles also match the stock they were fetched for. Articles that name no
    tracked company are marked `no_match` and never reach the AI.
 2. **AI (Gemini free tier).** Matching articles go to `LLM_TAG_MODEL` in batches of 15.
-   For each one the model returns which candidate companies it is really about, the
-   event type, tone (-1 to 1), importance (0 to 1) and a one-line summary.
+   For each one the model returns:
+   - the candidate companies it concerns, each with a role (`subject`, or `affected`
+     for a company the news materially changes things for) and its own tone (-1 to 1);
+   - the event type, importance (0 to 1) and a one-line summary;
+   - the basis: `announced` (company, filing, regulator), `reported` (media, sources,
+     analysts) or `commentary` (opinion, roundups, rehashed news). Scoring trusts them
+     in that order.
+
+   The prompt version is stored with every tag (`tag-v2`); migration 0004 sent all
+   `tag-v1` tags back to be redone.
 
 The answer is checked before it is saved: companies the name match didn't find are
 dropped, unknown event types become `other`, and numbers are clamped. So the agent can

@@ -88,6 +88,8 @@ event_types:
   - {key: regulatory, label: Regulatory decision, importance: 0.7}
   - {key: capital_raise, label: Share issue / capital raise, importance: 0.7}
   - {key: contract, label: Major contract / order, importance: 0.6}
+  - {key: investment, label: Strategic investment / financing deal / partnership, importance: 0.6}
+  - {key: operations, label: Production / supply chain / outage / recall, importance: 0.5}
   - {key: management_change, label: Management change, importance: 0.5}
   - {key: legal, label: Legal / litigation, importance: 0.5}
   - {key: divestment, label: Divestment, importance: 0.5}
