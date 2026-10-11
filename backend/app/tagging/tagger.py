@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.ai import LLMClient, LLMError, LLMRateLimited
 from app.config import Settings
-from app.models import AICall, Article, ArticleAnalysis, ArticleCompany
+from app.models import AICall, Article, ArticleAnalysis, ArticleCompany, Source
 from app.tagging.matcher import CompanyIndex
 from app.topic import TopicConfig
 
@@ -164,7 +164,8 @@ def tag_pending(
 ) -> TagReport:
     now = now or dt.datetime.now(dt.UTC)
     report = TagReport()
-    index = CompanyIndex.load(session, topic.key)
+    index = CompanyIndex.load(session, topic)
+    source_market = dict(session.execute(select(Source.id, Source.market)).all())
     event_keys = {e.key for e in topic.event_types}
 
     # Step 1, free: settle every pending article that names no tracked company.
@@ -176,7 +177,7 @@ def tag_pending(
     matches: dict[int, dict[int, str]] = {}
     for article in pending:
         report.checked += 1
-        found = index.match(article)
+        found = index.match(article, source_market.get(article.source_id))
         if found:
             matches[article.id] = found
         else:

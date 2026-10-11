@@ -35,6 +35,72 @@ def sync_topic() -> None:
 
 
 @app.command()
+def sync_universe() -> None:
+    """Refresh the list of every listed company (SEC for the US, Finnhub for Sweden)."""
+    from app.collect.fetchers import make_client
+    from app.db import get_sessionmaker
+    from app.universe import refresh_universe
+
+    with get_sessionmaker()() as session, make_client() as client:
+        r = refresh_universe(session, client, get_topic(), get_settings())
+    typer.echo(
+        f"Fetched {r.fetched}. Created {r.created}, updated {r.updated}, "
+        f"{r.listings_added} new listings, {r.aliases_added} aliases "
+        f"({r.aliases_skipped} skipped as ambiguous), {r.deactivated} delisted."
+    )
+    for market, error in r.errors.items():
+        typer.echo(f"ERROR {market}: {error}")
+    if r.errors and not r.fetched:
+        raise typer.Exit(1)
+
+
+@app.command()
+def watch(
+    stocks: Annotated[
+        list[str] | None, typer.Argument(help="Symbols, e.g. \"VOLV B\" AAPL")
+    ] = None,
+    holding: Annotated[bool, typer.Option(help="Mark as stocks you own.")] = False,
+    remove: Annotated[bool, typer.Option(help="Remove from the watchlist.")] = False,
+) -> None:
+    """Show or change your watchlist. Without arguments, lists it."""
+    from sqlalchemy import func, select
+
+    from app.db import get_sessionmaker
+    from app.models import Company, Listing, TrackedStock
+
+    with get_sessionmaker()() as session:
+        for text in stocks or []:
+            company = session.scalars(
+                select(Company)
+                .join(Listing)
+                .where(func.upper(Listing.symbol) == text.upper(), Company.active)
+                .order_by(Listing.is_primary.desc())
+            ).first() or session.scalars(select(Company).where(Company.key == text.lower())).first()
+            if company is None:
+                typer.echo(f"Not found: {text!r}. Use the symbol, e.g. \"VOLV B\" or AAPL.")
+                continue
+            row = session.get(TrackedStock, company.id)
+            if remove:
+                if row:
+                    session.delete(row)
+                typer.echo(f"Removed {company.name}")
+            else:
+                row = row or TrackedStock(company_id=company.id)
+                row.is_holding = holding or row.is_holding
+                session.add(row)
+                typer.echo(f"Watching {company.name}{' (holding)' if row.is_holding else ''}")
+        session.commit()
+        rows = session.execute(
+            select(Company.name, TrackedStock.is_holding)
+            .join(TrackedStock, TrackedStock.company_id == Company.id)
+            .order_by(Company.name)
+        ).all()
+    typer.echo(f"\nWatchlist ({len(rows)}):")
+    for name, is_holding in rows:
+        typer.echo(f"  {name}{'  ★ holding' if is_holding else ''}")
+
+
+@app.command()
 def collect(
     source: Annotated[list[str] | None, typer.Option(help="Only these source keys.")] = None,
 ) -> None:

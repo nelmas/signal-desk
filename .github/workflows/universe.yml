@@ -1,0 +1,41 @@
+# Daily refresh of every listed company the app can recognise (US via SEC, Sweden via Finnhub).
+# Uses the same secrets and COLLECT_ENABLED switch as "Collect news".
+name: Refresh company universe
+
+on:
+  schedule:
+    - cron: "41 4 * * *"  # once a day, before the Stockholm morning
+  workflow_dispatch:
+
+concurrency:
+  group: collect  # shares the database with the hourly job; never run both at once
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  universe:
+    if: ${{ vars.COLLECT_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.23"
+          enable-cache: true
+      - run: uv sync --frozen --no-dev
+      - name: Apply database migrations
+        run: uv run alembic upgrade head
+      - name: Sync topic config
+        run: uv run signal-desk sync-topic
+      - name: Sync universe
+        run: uv run signal-desk sync-universe

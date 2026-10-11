@@ -8,8 +8,9 @@ companies_file: companies.csv
 
 markets:
   - key: SE
-    name: Nasdaq Stockholm
-    mics: [XSTO]
+    name: Swedish marketplaces
+    # Nasdaq Stockholm, First North, Spotlight, NGM
+    mics: [XSTO, FNSE, XSAT, XNGM]
     timezone: Europe/Stockholm
     benchmark: OMXS30
   - key: US
@@ -17,6 +18,14 @@ markets:
     mics: [XNAS, XNYS]
     timezone: America/New_York
     benchmark: S&P 500
+
+# Every listed company the app can recognise in the news (refreshed by sync-universe).
+# Your watchlist is separate: it decides what you always see, not what is understood.
+universe:
+  us_exchanges: [Nasdaq, NYSE]
+  # SEC's list is ordered roughly by size; the smallest US names add mostly noise.
+  us_max_companies: 1500
+  se_finnhub_exchange: ST
 
 # MFN carries Nordic releases in a dozen languages; the briefing reads these two.
 article_languages: [en, sv]

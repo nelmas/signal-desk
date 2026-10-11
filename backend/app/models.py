@@ -53,7 +53,10 @@ class Company(Base):
     """An issuer. News is tagged to companies; prices belong to listings."""
 
     __tablename__ = "companies"
-    __table_args__ = (UniqueConstraint("topic", "key"),)
+    __table_args__ = (
+        UniqueConstraint("topic", "key"),
+        CheckConstraint("origin IN ('curated', 'universe')", name="origin"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     topic: Mapped[str] = mapped_column(String(50))
@@ -62,6 +65,10 @@ class Company(Base):
     country: Mapped[str] = mapped_column(String(2))  # ISO 3166-1 alpha-2
     sector: Mapped[str | None] = mapped_column(String(100))
     industry: Mapped[str | None] = mapped_column(String(100))
+    # curated: from companies.csv, with hand-written aliases. universe: from the
+    # exchange lists (sync-universe), so news about any listed company is understood.
+    origin: Mapped[str] = mapped_column(String(20), server_default="curated")
+    cik: Mapped[str | None] = mapped_column(String(10), index=True)  # SEC company id (US)
     active: Mapped[bool] = mapped_column(Boolean, server_default="true")
     created_at: Mapped[dt.datetime] = created_at_column()
 

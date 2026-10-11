@@ -21,6 +21,7 @@ from app.models import (
     Listing,
     Source,
     StoryArticle,
+    TrackedStock,
 )
 from app.topic import TopicConfig
 
@@ -85,23 +86,27 @@ def collect(
 
 
 def _symbols(session: Session, topic: TopicConfig, market_key: str | None) -> list[str]:
-    """Primary symbols of active companies listed in the source's market."""
+    """Primary symbols to fetch per-stock news for: your watchlist in the source's market.
+
+    Per-stock APIs cost one call per symbol, so the universe (thousands of companies)
+    is never queried this way. With no watchlist yet, companies.csv stands in.
+    """
     mics = {mic for m in topic.markets if m.key == market_key for mic in m.mics}
     if not mics:
         return []
-    return list(
-        session.scalars(
-            select(Listing.symbol)
-            .join(Company)
-            .where(
-                Company.topic == topic.key,
-                Company.active,
-                Listing.is_primary,
-                Listing.mic.in_(mics),
-            )
-            .order_by(Listing.symbol)
+    query = (
+        select(Listing.symbol)
+        .join(Company)
+        .where(
+            Company.topic == topic.key,
+            Company.active,
+            Listing.is_primary,
+            Listing.mic.in_(mics),
         )
+        .order_by(Listing.symbol)
     )
+    watched = list(session.scalars(query.join(TrackedStock, TrackedStock.company_id == Company.id)))
+    return watched or list(session.scalars(query.where(Company.origin == "curated")))
 
 
 def _store(

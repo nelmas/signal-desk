@@ -120,11 +120,11 @@ def test_compute_scores_ranks_the_busy_company_first_and_upserts(db: Session) ->
     keys = dict(db.execute(select(Company.id, Company.key)).all())
     by_key = {keys[c]: float(s.score) for c, s in scores.items()}
     assert by_key["volvo"] > by_key["skf"] > 0
-    assert by_key["apple"] == 0
-    assert len(scores) == 46
+    assert "apple" not in by_key  # no news, not watched: no row at all
+    assert len(scores) == 2
 
     compute_scores(db, TOPIC, now=NOW)  # same day again: update, not duplicate
-    assert len(db.scalars(select(SignalScore)).all()) == 46
+    assert len(db.scalars(select(SignalScore)).all()) == 2
     row = db.scalars(
         select(SignalScore).join(Company).where(Company.key == "volvo")
     ).one()

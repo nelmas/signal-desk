@@ -107,6 +107,31 @@ each run and each day (counted from midnight Pacific, when Gemini resets) has a 
 call is logged in `ai_calls` with tokens and latency. A 429 (quota reached) ends the run;
 the remaining articles wait for the next run.
 
+## Universe and watchlist
+
+Two separate lists:
+
+- **Universe:** every company the app can recognise in the news, so it can surface
+  stocks you don't follow. `signal-desk sync-universe` (daily, `universe.yml`) loads
+  US companies on Nasdaq and NYSE from SEC's free ticker file (the largest
+  `us_max_companies`), and Swedish companies on Nasdaq Stockholm, First North,
+  Spotlight and NGM from Finnhub's free symbol list. Names are cleaned
+  ("AMAZON COM INC" -> "amazon"); single-word names that are common words
+  ("Target", "Block") are not used alone, and a name two companies share stays with
+  the first (largest). Companies from `companies.csv` are "curated": they keep their
+  hand-written aliases and are never changed or delisted by the universe sync.
+- **Watchlist:** the stocks you always want to see, marked as holdings if you own
+  them. `signal-desk watch "VOLV B" AAPL --holding`, `signal-desk watch --remove AAPL`,
+  `signal-desk watch` to list. Finnhub's per-stock news is fetched for the watchlist's
+  US stocks (or `companies.csv` while the watchlist is empty).
+
+How articles are matched to companies, strongest first: SEC filings by company id
+(CIK); MFN and Cision releases by the issuer named in the link; names in the text
+within the article's own market (watchlist companies match in every market); Finnhub
+articles by the stock they were fetched for.
+
+Only companies with news in the last 30 days, plus the watchlist, get a score row.
+
 ## Signal score
 
 `signal-desk score` gives every tracked company a 0-100 score for today (Stockholm date),

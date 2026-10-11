@@ -75,6 +75,12 @@ class BriefingConfig(BaseModel):
     max_ideas: int = Field(ge=0)
 
 
+class UniverseConfig(BaseModel):
+    us_exchanges: list[str] = ["Nasdaq", "NYSE"]
+    us_max_companies: int = Field(default=1500, ge=0)
+    se_finnhub_exchange: str | None = "ST"
+
+
 class TopicConfig(BaseModel):
     key: str
     name: str
@@ -83,6 +89,7 @@ class TopicConfig(BaseModel):
     markets: list[Market]
     # Articles in other languages are dropped at collection. Empty means keep all.
     article_languages: list[str] = []
+    universe: UniverseConfig = UniverseConfig()
     sources: list[SourceConfig]
     event_types: list[EventType]
     scoring_weights: ScoringWeights
@@ -103,6 +110,9 @@ class TopicConfig(BaseModel):
     @property
     def mics(self) -> set[str]:
         return {mic for m in self.markets for mic in m.mics}
+
+    def market_for_mic(self, mic: str) -> str | None:
+        return next((m.key for m in self.markets if mic in m.mics), None)
 
 
 class ListingSpec(BaseModel):

@@ -33,6 +33,7 @@ from app.models import (
     PriceDaily,
     Setting,
     SignalScore,
+    TrackedStock,
 )
 from app.topic import TopicConfig
 
@@ -137,7 +138,7 @@ def score_company(
 def compute_scores(
     session: Session, topic: TopicConfig, *, now: dt.datetime | None = None
 ) -> list[SignalScore]:
-    """Score every active company for today (Stockholm date) and upsert the rows."""
+    """Score companies with recent news and the watchlist for today (Stockholm date)."""
     now = now or dt.datetime.now(dt.UTC)
     since = now - WINDOW - dt.timedelta(days=BASELINE_DAYS)
     type_importance = {e.key: e.importance for e in topic.event_types}
@@ -183,9 +184,14 @@ def compute_scores(
     baseline_days = max(1.0, min(float(BASELINE_DAYS), history))
 
     date = now.astimezone(ZoneInfo(topic.briefing.timezone)).date()
+    # Thousands of universe companies have no news on a given day; scoring only those
+    # with recent news, plus the watchlist, keeps the free database small.
+    candidates = set(tags) | set(session.scalars(select(TrackedStock.company_id)))
     results = []
     for company in session.scalars(
-        select(Company).where(Company.topic == topic.key, Company.active)
+        select(Company).where(
+            Company.topic == topic.key, Company.active, Company.id.in_(candidates)
+        )
     ):
         score, components = score_company(
             tags.get(company.id, []),

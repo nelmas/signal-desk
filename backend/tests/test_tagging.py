@@ -12,7 +12,15 @@ from sqlalchemy.orm import Session
 
 from app.ai import LLMClient
 from app.config import Settings
-from app.models import AICall, Article, ArticleAnalysis, ArticleCompany, Company, Source
+from app.models import (
+    AICall,
+    Article,
+    ArticleAnalysis,
+    ArticleCompany,
+    Company,
+    Source,
+    TrackedStock,
+)
 from app.sync import sync_topic
 from app.tagging import tag_pending
 from app.tagging.matcher import CompanyIndex
@@ -72,14 +80,19 @@ def db(session: Session) -> Session:
 
 
 def add_article(
-    session: Session, title: str, summary: str = "", raw: dict | None = None
+    session: Session,
+    title: str,
+    summary: str = "",
+    raw: dict | None = None,
+    source: str = "mfn",
+    url: str | None = None,
 ) -> Article:
-    source = session.scalars(select(Source).where(Source.key == "mfn")).one()
+    source_row = session.scalars(select(Source).where(Source.key == source)).one()
     n = session.scalar(select(func.count()).select_from(Article)) or 0
     article = Article(
         topic="stocks",
-        source_id=source.id,
-        url=f"https://example.com/{n}",
+        source_id=source_row.id,
+        url=url or f"https://example.com/{n}",
         url_hash=f"{n:064d}",
         content_hash=f"{n:064d}",
         title=title,
@@ -121,15 +134,55 @@ def company_keys(session: Session, article: Article) -> set[str]:
     ],
 )
 def test_matcher_finds_whole_names_only(db: Session, title: str, expected: set[str]) -> None:
-    index = CompanyIndex.load(db, "stocks")
+    index = CompanyIndex.load(db, TOPIC)
     found = index.match(add_article(db, title))
     assert {index.keys[c] for c in found} == expected
 
 
 def test_matcher_uses_finnhub_symbol(db: Session) -> None:
-    index = CompanyIndex.load(db, "stocks")
+    index = CompanyIndex.load(db, TOPIC)
     found = index.match(add_article(db, "Chip stocks rally", raw={"queried_symbol": "NVDA"}))
     assert {index.keys[c]: alias for c, alias in found.items()} == {"nvidia": "symbol:NVDA"}
+
+
+def keys_of(index: CompanyIndex, found: dict[int, str]) -> set[str]:
+    return {index.keys[c] for c in found}
+
+
+def test_text_matches_stay_in_the_articles_market_unless_watched(db: Session) -> None:
+    title = "Ericsson wins 5G deal; JP Morgan arranges financing"
+    article = add_article(db, title)  # MFN: a Swedish source
+    index = CompanyIndex.load(db, TOPIC)
+    assert keys_of(index, index.match(article, "SE")) == {"ericsson"}
+
+    jpm = db.scalars(select(Company).where(Company.key == "jpmorgan")).one()
+    db.add(TrackedStock(company_id=jpm.id))
+    db.commit()
+    index = CompanyIndex.load(db, TOPIC)
+    assert keys_of(index, index.match(article, "SE")) == {"ericsson", "jpmorgan"}
+
+
+def test_sec_filings_match_exactly_by_company_id(db: Session) -> None:
+    apple = db.scalars(select(Company).where(Company.key == "apple")).one()
+    apple.cik = "0000320193"
+    db.commit()
+    index = CompanyIndex.load(db, TOPIC)
+    sec = "https://www.sec.gov/Archives/edgar/data/320193/x-index.htm"
+    filing = add_article(db, "8-K - Apple Inc. (0000320193) (Filer)", source="sec-8k", url=sec)
+    other = add_article(
+        db, "8-K - Apple Hospitality REIT (0001418121) (Filer)", source="sec-8k", url=sec + "2"
+    )
+    assert index.match(filing, "US") == {apple.id: "cik:0000320193"}
+    assert index.match(other, "US") == {}  # name says Apple, but it's another company
+
+
+def test_press_releases_match_their_issuer_from_the_link(db: Session) -> None:
+    index = CompanyIndex.load(db, TOPIC)
+    mfn = add_article(db, "Interim report January-September 2026",
+                      url="https://mfn.se/a/volvo/interim-report-q3")
+    cision = add_article(db, "Delårsrapport", url="https://news.cision.com/se/ab-skf/r/delarsrapport,c1")
+    assert keys_of(index, index.match(mfn, "SE")) == {"volvo"}
+    assert keys_of(index, index.match(cision, "SE")) == {"skf"}
 
 
 # --- AI step ---------------------------------------------------------------------------
@@ -177,7 +230,7 @@ def test_ai_cannot_add_companies_or_event_types(db: Session) -> None:
 
 
 def test_each_company_gets_its_own_role_and_tone(db: Session) -> None:
-    article = add_article(db, "Apple cuts orders; Broadcom shares fall")
+    article = add_article(db, "Apple cuts orders; Broadcom shares fall", source="finnhub-news")
 
     def split(article_id: int, keys: list[str]) -> dict[str, Any]:
         return {**tag_all(article_id, keys), "basis": "reported", "event_type": "operations",

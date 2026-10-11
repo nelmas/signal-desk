@@ -64,6 +64,7 @@ def _sync_companies(
         company.name = spec.name
         company.country = spec.country
         company.sector = spec.sector
+        company.origin = "curated"
         company.active = True
         session.add(company)
         session.flush()  # need company.id
@@ -87,7 +88,8 @@ def _sync_companies(
                 known.add(norm)
                 report.aliases_added += 1
 
-    removed = set(existing) - {s.key for s in specs}
+    # Only companies that came from the CSV; universe companies are sync-universe's job.
+    removed = {k for k, c in existing.items() if c.origin == "curated"} - {s.key for s in specs}
     if removed:
         result = session.execute(
             update(Company)
