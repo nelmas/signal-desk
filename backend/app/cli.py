@@ -91,13 +91,13 @@ def watch(
                 typer.echo(f"Watching {company.name}{' (holding)' if row.is_holding else ''}")
         session.commit()
         rows = session.execute(
-            select(Company.name, TrackedStock.is_holding)
+            select(Company.name, TrackedStock.is_holding, TrackedStock.note)
             .join(TrackedStock, TrackedStock.company_id == Company.id)
             .order_by(Company.name)
         ).all()
     typer.echo(f"\nWatchlist ({len(rows)}):")
-    for name, is_holding in rows:
-        typer.echo(f"  {name}{'  ★ holding' if is_holding else ''}")
+    for name, is_holding, note in rows:
+        typer.echo(f"  {name:<30}{'holding' if is_holding else '':<9}{note or ''}")
 
 
 @app.command()
