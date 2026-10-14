@@ -133,6 +133,19 @@ articles by the stock they were fetched for.
 
 Only companies with news in the last 30 days, plus the watchlist, get a score row.
 
+## Prices
+
+`signal-desk prices` (in the hourly job, before scoring) fetches daily prices from Twelve
+Data's free plan for the primary US listing of your watchlist and the top
+`PRICE_TOP_SCORERS` companies by score. A listing that already has the last completed
+US session is skipped, so most runs make no requests; a new stock gets 40 sessions of
+history. Today's bar is stored only once the session has closed. Requests are paced
+under the free 8 per minute, capped per run, and a 429 ends the run.
+
+Terms: Twelve Data's data is for the customer's own internal, non-commercial use and
+display, with no redistribution. Prices are therefore only ever shown inside this
+private app. Swedish prices are not on the free plan and are not fetched yet.
+
 ## Signal score
 
 `signal-desk score` gives every tracked company a 0-100 score for today (Stockholm date),
@@ -187,7 +200,7 @@ free tier changes.
 1. Project setup and database ✅
 2. News collection (RSS, MFN/Cision, news API, dedup, hourly) ✅
 3. AI tagging (companies checked against ticker list, event type, sentiment, summary) ✅
-4. Prices and the 0–100 signal score (score ✅, prices pending a free source)
+4. Prices and the 0–100 signal score ✅ (US prices; Swedish prices pending a free source)
 5. Story clustering and briefing generation with citations
 6. Web app: briefing, watchlist, news feed, stock detail
 7. Settings and daily email

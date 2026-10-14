@@ -173,6 +173,25 @@ def score(top: int = 10) -> None:
 
 
 @app.command()
+def prices() -> None:
+    """Fetch daily prices for the watchlist and today's top scorers (US, Twelve Data)."""
+    from app.collect.fetchers import make_client
+    from app.db import get_sessionmaker
+    from app.prices import update_prices
+
+    with get_sessionmaker()() as session, make_client() as client:
+        r = update_prices(session, client, get_topic(), get_settings())
+    typer.echo(
+        f"{r.listings} listings: {r.up_to_date} up to date, {r.fetched} fetched "
+        f"({r.rows} price rows), {r.requests} requests"
+    )
+    for symbol, error in r.failed.items():
+        typer.echo(f"  failed {symbol}: {error}")
+    if r.stopped:
+        typer.echo(f"stopped: {r.stopped}")
+
+
+@app.command()
 def prune(days: int | None = None) -> None:
     """Delete old articles that no tracked company was tagged in."""
     from app.collect import prune_untagged
@@ -204,6 +223,7 @@ def show_config() -> None:
     typer.echo(f"gemini key: {'set' if s.gemini_api_key else 'missing'}")
     typer.echo(f"finnhub key: {'set' if s.finnhub_api_key else 'missing'}")
     typer.echo(f"sec user agent: {s.sec_user_agent or 'missing'}")
+    typer.echo(f"twelve data key: {'set' if s.twelve_data_api_key else 'missing'}")
 
 
 if __name__ == "__main__":

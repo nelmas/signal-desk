@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     # News sources. SEC rejects requests without a "Name email" User-Agent.
     sec_user_agent: str | None = None
     finnhub_api_key: str | None = None  # free key, no card: https://finnhub.io
+    # Prices: Twelve Data free plan (US only, 8/min, 800/day). Watchlist + top scorers.
+    twelve_data_api_key: str | None = None
+    price_requests_per_minute: int = 7
+    price_requests_per_run: int = 40
+    price_top_scorers: int = 15
+
     # Articles no company was tagged in are deleted after this many days, so the
     # database stays inside Neon's free storage.
     untagged_retention_days: int = 14

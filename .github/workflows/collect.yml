@@ -1,5 +1,6 @@
 # Hourly news collection, tagging and scoring. Free: public repos get unlimited Actions minutes.
-# Needs repo secrets: DATABASE_URL, SEC_USER_AGENT, FINNHUB_API_KEY, GEMINI_API_KEY.
+# Needs repo secrets: DATABASE_URL, SEC_USER_AGENT, FINNHUB_API_KEY, GEMINI_API_KEY,
+# TWELVE_DATA_API_KEY.
 name: Collect news
 
 on:
@@ -29,6 +30,7 @@ jobs:
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -44,6 +46,8 @@ jobs:
         run: uv run signal-desk collect
       - name: Tag articles
         run: uv run signal-desk tag
+      - name: Update prices
+        run: uv run signal-desk prices
       - name: Score stocks
         run: uv run signal-desk score
       - name: Prune untagged articles
