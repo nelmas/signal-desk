@@ -166,3 +166,18 @@ def test_prune_keeps_tagged_and_recent_articles(synced: Session) -> None:
     assert prune_untagged(synced, older_than_days=30, now=later) == 0
     assert prune_untagged(synced, older_than_days=14, now=later) == len(articles) - 1
     assert synced.scalar(select(func.count()).select_from(Article)) == 1
+
+
+def test_sources_and_markets_turned_off_in_settings_are_skipped(synced: Session) -> None:
+    from app.models import Setting
+
+    synced.add(Setting(key="sources", value={"mfn": False}))
+    synced.add(Setting(key="markets", value={"US": False}))
+    synced.commit()
+    feeds = FakeFeeds()
+    results = _run(synced, feeds)
+    assert results["mfn"].skipped == "turned off in Settings"
+    assert results["sec-8k"].skipped == "market US turned off in Settings"
+    assert results["finnhub-news"].skipped == "market US turned off in Settings"
+    assert results["cision-se"].new == 1
+    assert {r.url.host for r in feeds.requests} == {"news.cision.com"}

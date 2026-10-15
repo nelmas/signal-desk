@@ -48,6 +48,17 @@ class Settings(BaseSettings):
     price_requests_per_run: int = 40
     price_top_scorers: int = 15
 
+    # Daily email (phase 7). Recipient and on/off live in Settings; EMAIL_TO is a fallback.
+    email_provider: str = "resend"  # or "smtp"
+    resend_api_key: str | None = None
+    email_from: str | None = None
+    email_to: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 465
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    app_url: str | None = None  # link to the web app in the email
+
     # Articles no company was tagged in are deleted after this many days, so the
     # database stays inside Neon's free storage.
     untagged_retention_days: int = 14

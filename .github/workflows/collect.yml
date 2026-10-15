@@ -1,7 +1,7 @@
 # Hourly news collection, tagging, scoring and the daily briefing.
 # Free: public repos get unlimited Actions minutes.
 # Needs repo secrets: DATABASE_URL, SEC_USER_AGENT, FINNHUB_API_KEY, GEMINI_API_KEY,
-# TWELVE_DATA_API_KEY.
+# TWELVE_DATA_API_KEY, RESEND_API_KEY (or SMTP_*). Optional variable: APP_URL.
 name: Collect news
 
 on:
@@ -11,6 +11,10 @@ on:
     inputs:
       rewrite_briefing:
         description: "Rewrite today's briefing (uses 1 of the 20 daily briefing requests)"
+        type: boolean
+        default: false
+      send_test_email:
+        description: "Email the latest briefing now, as a test (doesn't count as today's send)"
         type: boolean
         default: false
 
@@ -37,6 +41,13 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      EMAIL_PROVIDER: ${{ vars.EMAIL_PROVIDER || 'resend' }}
+      EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+      SMTP_HOST: ${{ vars.SMTP_HOST }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      APP_URL: ${{ vars.APP_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -58,5 +69,7 @@ jobs:
         run: uv run signal-desk score
       - name: Write morning briefing (once a day, after send time)
         run: uv run signal-desk briefing ${{ inputs.rewrite_briefing && '--force' || '--if-due' }}
+      - name: Email the briefing (once, after it is written)
+        run: uv run signal-desk send-briefing ${{ inputs.send_test_email && '--test' || '' }}
       - name: Prune untagged articles
         run: uv run signal-desk prune

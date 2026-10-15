@@ -225,6 +225,25 @@ def briefing(
 
 
 @app.command()
+def send_briefing(
+    test: Annotated[bool, typer.Option(help="Send the latest briefing now, as a test.")] = False,
+) -> None:
+    """Email today's briefing if email is on, it's past send time and it isn't sent yet."""
+    from app.collect.fetchers import make_client
+    from app.db import get_sessionmaker
+    from app.email import EmailError, send_due_briefing
+
+    with get_sessionmaker()() as session, make_client() as client:
+        try:
+            typer.echo(send_due_briefing(session, client, get_topic(), get_settings(), test=test))
+        except EmailError as e:
+            # Not marked as sent, so the next hourly run tries again.
+            typer.echo(f"Email not sent: {e}")
+            if test:
+                raise typer.Exit(1) from e
+
+
+@app.command()
 def prune(days: int | None = None) -> None:
     """Delete old articles that no tracked company was tagged in."""
     from app.collect import prune_untagged

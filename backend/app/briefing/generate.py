@@ -33,6 +33,7 @@ from app.models import (
 )
 from app.topic import TopicConfig
 from app.universe import clean_name
+from app.user_settings import disabled_markets
 
 PURPOSE = "briefing"
 PROMPT_VERSION = "brief-v2"
@@ -263,7 +264,13 @@ def generate_briefing(
         select(SignalScore.date).where(SignalScore.date <= day).order_by(SignalScore.date.desc())
     ) or day
     all_stories = build_stories(session, topic.key, since, now, score_date)
+    # Your holdings are always reported; markets turned off in Settings only leave out
+    # top stories, sectors and ideas.
     holding_stories = _best_per_company([s for s in all_stories if s.is_holding])
+    off = disabled_markets(session)
+    if off:
+        hidden = _companies_in_markets(session, topic, off)
+        all_stories = [s for s in all_stories if s.company_id not in hidden]
     story_pool = all_stories[: opts.max_stories + STORY_CANDIDATES_EXTRA]
     idea_pool = _idea_candidates(session, all_stories, story_pool, score_date)
 
@@ -312,6 +319,15 @@ def generate_briefing(
     briefing.content = content
     session.commit()
     return briefing
+
+
+def _companies_in_markets(session: Session, topic: TopicConfig, markets: set[str]) -> set[int]:
+    mics = {mic for m in topic.markets if m.key in markets for mic in m.mics}
+    return set(
+        session.scalars(
+            select(Listing.company_id).where(Listing.is_primary, Listing.mic.in_(mics))
+        )
+    )
 
 
 def _best_per_company(stories: list[StoryCandidate]) -> list[StoryCandidate]:

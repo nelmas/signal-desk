@@ -345,3 +345,21 @@ def test_force_replaces_todays_briefing(db: Session, news) -> None:
     run(db, FakeGemini(good_answer(news)), force=True)
     assert db.scalar(select(func.count()).select_from(Briefing)) == 1
     assert db.scalar(select(func.count()).select_from(Story)) == 2
+
+
+def test_markets_turned_off_leave_stories_out_but_keep_holdings(db: Session, news) -> None:
+    from app.models import Setting
+
+    db.add(Setting(key="markets", value={"US": False}))
+    db.commit()
+    def volvo_only(prompt: str) -> dict:
+        n = story_numbers(prompt)
+        assert set(n) == {"volvo"}  # US stories were never offered
+        return {"overview": {"text": "Volvo won.", "cites": news["volvo"]}, "stories": [],
+                "sectors": [], "ideas": []}
+
+    fake = FakeGemini(volvo_only)
+    c = run(db, fake).content
+    assert "Apple" not in fake.prompts[0] and "Nvidia" not in fake.prompts[0]
+    assert c["overview"]["text"] == "Volvo won."
+    assert [h["company"] for h in c["holdings"]] == ["nvidia"]  # holdings always reported

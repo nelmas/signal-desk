@@ -24,6 +24,7 @@ from app.models import (
     TrackedStock,
 )
 from app.topic import TopicConfig
+from app.user_settings import market_enabled, source_enabled
 
 log = logging.getLogger(__name__)
 
@@ -63,6 +64,12 @@ def collect(
     for source in session.scalars(query).all():
         result = SourceResult(source.key)
         results.append(result)
+        if not source_enabled(session, source.key):
+            result.skipped = "turned off in Settings"
+            continue
+        if not market_enabled(session, source.market):
+            result.skipped = f"market {source.market} turned off in Settings"
+            continue
         try:
             items = fetch_source(
                 client, source, settings, symbols=_symbols(session, topic, source.market), now=now
