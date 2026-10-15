@@ -1,4 +1,5 @@
-# Hourly news collection, tagging and scoring. Free: public repos get unlimited Actions minutes.
+# Hourly news collection, tagging, scoring and the daily briefing.
+# Free: public repos get unlimited Actions minutes.
 # Needs repo secrets: DATABASE_URL, SEC_USER_AGENT, FINNHUB_API_KEY, GEMINI_API_KEY,
 # TWELVE_DATA_API_KEY.
 name: Collect news
@@ -50,5 +51,7 @@ jobs:
         run: uv run signal-desk prices
       - name: Score stocks
         run: uv run signal-desk score
+      - name: Write morning briefing (once a day, after send time)
+        run: uv run signal-desk briefing --if-due
       - name: Prune untagged articles
         run: uv run signal-desk prune

@@ -146,6 +146,27 @@ Terms: Twelve Data's data is for the customer's own internal, non-commercial use
 display, with no redistribution. Prices are therefore only ever shown inside this
 private app. Swedish prices are not on the free plan and are not fetched yet.
 
+## Morning briefing
+
+`signal-desk briefing` writes today's briefing; the hourly job runs it with `--if-due`,
+so it is written on the first run after the send time (Settings, default 07:00
+Stockholm) and only once a day. `--force` replaces today's briefing.
+
+1. **Stories (code):** tagged articles since the previous briefing (at least 24 hours,
+   at most 72, so weekends are covered) are grouped by main company and event type.
+   Stories rank by the best article's importance and trust, number of outlets, the
+   company's signal score, and a bonus for holdings and the watchlist.
+2. **Writing (one AI call, `LLM_BRIEFING_MODEL`):** the AI gets the top stories with
+   numbered articles, the holdings' news and the idea candidates (score of 40 or more
+   with positive tone), and returns the overview, holdings, stories (what happened /
+   what it means / what it could lead to), sectors and ideas.
+3. **Checks (code):** a citation must be an article the AI was given, a story needs
+   sourced facts, a holding or idea must be a company it was offered (and cite that
+   company's own news), and enums, counts and lengths are enforced. Anything that
+   fails is dropped, never repaired by guessing. Sources are numbered [1], [2], … in
+   reading order and stored as `citations`; ideas are stored in `ideas` for the track
+   record.
+
 ## Signal score
 
 `signal-desk score` gives each company with recent news (plus the watchlist) a 0-100
@@ -207,7 +228,7 @@ free tier changes.
 2. News collection (RSS, MFN/Cision, news API, dedup, hourly) ✅
 3. AI tagging (companies checked against ticker list, event type, sentiment, summary) ✅
 4. Prices and the 0–100 signal score ✅ (US prices; Swedish prices pending a free source)
-5. Story clustering and briefing generation with citations
+5. Story clustering and briefing generation with citations ✅
 6. Web app: briefing, watchlist, news feed, stock detail
 7. Settings and daily email
 8. Track record

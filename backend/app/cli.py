@@ -1,3 +1,4 @@
+import datetime as dt
 from typing import Annotated
 
 import typer
@@ -190,6 +191,37 @@ def prices() -> None:
         typer.echo(f"  failed {symbol}: {error}")
     if r.stopped:
         typer.echo(f"stopped: {r.stopped}")
+
+
+@app.command()
+def briefing(
+    if_due: Annotated[bool, typer.Option(help="Only if past send time and none today.")] = False,
+    force: Annotated[bool, typer.Option(help="Replace today's briefing.")] = False,
+) -> None:
+    """Write today's morning briefing (one AI call) and print it."""
+    from app.ai import LLMClient, LLMError
+    from app.briefing import generate_briefing, is_due, render_text
+    from app.collect.fetchers import make_client
+    from app.db import get_sessionmaker
+
+    settings, topic = get_settings(), get_topic()
+    with get_sessionmaker()() as session, make_client() as client:
+        if if_due and not force and not is_due(session, topic, dt.datetime.now(dt.UTC)):
+            typer.echo("Briefing not due yet (before send time, or already written today).")
+            return
+        if not settings.gemini_api_key:
+            typer.echo("No GEMINI_API_KEY; cannot write the briefing.")
+            raise typer.Exit(1)
+        try:
+            result = generate_briefing(
+                session, LLMClient(client, session, settings.gemini_api_key), topic, settings,
+                force=force,
+            )
+        except LLMError as e:
+            # Nothing is saved, so the next hourly run tries again.
+            typer.echo(f"Briefing not written: {e}")
+            return
+        typer.echo(render_text(result))
 
 
 @app.command()
