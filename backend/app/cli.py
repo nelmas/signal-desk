@@ -169,7 +169,8 @@ def score(top: int = 10) -> None:
     for s in sorted(scores, key=lambda s: s.score, reverse=True)[:top]:
         factors = s.components["factors"]
         detail = ", ".join(f"{k} {v['score']:.0f}" for k, v in factors.items())
-        typer.echo(f"{float(s.score):6.1f}  {names[s.company_id]:<28} {detail}")
+        market = s.components["market"]["label"].replace("_", " ")
+        typer.echo(f"{float(s.score):6.1f}  {names[s.company_id]:<28} {detail}  [{market}]")
 
 
 @app.command()

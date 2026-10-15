@@ -114,10 +114,10 @@ event_types:
 
 # Defaults; the user can change these in Settings (stored in the settings table).
 scoring_weights:
-  news_volume: 0.35
-  event_importance: 0.30
-  sentiment_shift: 0.20
-  market_reaction: 0.15
+  news_volume: 0.40
+  event_importance: 0.35
+  sentiment_shift: 0.25
+  # The market's reaction is shown as a label next to the score, not weighted into it.
 
 briefing:
   send_time: "07:00"

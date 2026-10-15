@@ -56,7 +56,7 @@ def test_burst_of_negative_news_scores_high() -> None:
     assert f["news_volume"]["score"] > 60
     assert f["event_importance"]["score"] == 90
     assert f["sentiment_shift"]["score"] == 90  # from +0.2 to -0.7
-    assert "market_reaction" not in f
+    assert parts["market"] == {"label": "no_price_data"}
     # Without prices the other three weights are rescaled to sum to 1.
     assert sum(parts["weights_used"].values()) == pytest.approx(1)
     assert score > 70
@@ -132,21 +132,48 @@ def test_compute_scores_ranks_the_busy_company_first_and_upserts(db: Session) ->
     assert row.components["factors"]["news_volume"]["articles_24h"] == 5
 
 
-def test_user_weights_and_prices_are_used(db: Session) -> None:
-    db.get(Setting, "scoring_weights").value = {
-        "news_volume": 0, "event_importance": 0, "sentiment_shift": 0, "market_reaction": 1,
-    }
-    volvo = db.scalars(select(Listing).where(Listing.symbol == "VOLV B")).one()
+def add_prices(session: Session, symbol: str, last_close: str, last_volume: int) -> Listing:
+    """21 calm sessions up to the day before NOW, the last one as given."""
+    listing = session.scalars(select(Listing).where(Listing.symbol == symbol)).one()
     for i in range(21):
-        db.add(PriceDaily(
-            listing_id=volvo.id, date=dt.date(2026, 9, 18) + dt.timedelta(days=i),
-            close=Decimal("106") if i == 20 else Decimal(100 + (i % 2) * 0.5),
-            volume=3000 if i == 20 else 1000, source="test",
+        session.add(PriceDaily(
+            listing_id=listing.id, date=dt.date(2026, 9, 18) + dt.timedelta(days=i),
+            close=Decimal(last_close) if i == 20 else Decimal(100 + (i % 2) * 0.5),
+            volume=last_volume if i == 20 else 1000, source="test",
         ))
-    db.commit()
-    add_tagged(db, "volvo", 2)
+    session.commit()
+    return listing
 
-    scores = compute_scores(db, TOPIC, now=NOW)
-    volvo_score = next(s for s in scores if s.company_id == volvo.company_id)
-    assert volvo_score.components["weights_used"] == {"market_reaction": 1.0}
-    assert float(volvo_score.score) > 60
+
+def scored(session: Session, listing: Listing):
+    return next(s for s in compute_scores(session, TOPIC, now=NOW)
+                if s.company_id == listing.company_id)
+
+
+def test_user_weights_apply_and_prices_do_not_change_the_score(db: Session) -> None:
+    add_tagged(db, "volvo", 2)
+    add_tagged(db, "skf", 2)
+    volvo = add_prices(db, "VOLV B", "106", 3000)  # big move; SKF has no prices
+    skf = db.scalars(select(Listing).where(Listing.symbol == "SKF B")).one()
+    assert float(scored(db, volvo).score) == float(scored(db, skf).score)
+
+    db.get(Setting, "scoring_weights").value = {
+        "news_volume": 0, "event_importance": 1, "sentiment_shift": 0, "market_reaction": 5,
+    }
+    db.commit()
+    row = scored(db, volvo)
+    assert row.components["weights_used"] == {"event_importance": 1.0}
+    assert float(row.score) == row.components["factors"]["event_importance"]["score"]
+
+
+def test_market_label_moving_with_news(db: Session) -> None:
+    add_tagged(db, "volvo", 2, sentiment=0.6)
+    market = scored(db, add_prices(db, "VOLV B", "106", 3000)).components["market"]
+    assert market["label"] == "moving_with_news" and market["return_pct"] > 5
+
+
+def test_market_label_not_priced_in_yet(db: Session) -> None:
+    for h in range(1, 7):
+        add_tagged(db, "volvo", h, importance=0.9, sentiment=0.7)
+    market = scored(db, add_prices(db, "VOLV B", "100.2", 1000)).components["market"]
+    assert market["label"] == "not_priced_in_yet"

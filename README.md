@@ -148,20 +148,26 @@ private app. Swedish prices are not on the free plan and are not fetched yet.
 
 ## Signal score
 
-`signal-desk score` gives every tracked company a 0-100 score for today (Stockholm date),
-in plain code, no AI. Each factor scores 0-100:
+`signal-desk score` gives each company with recent news (plus the watchlist) a 0-100
+score for today (Stockholm date), in plain code, no AI. Three news factors, each 0-100:
 
 | Factor | Measures |
 |---|---|
 | `news_volume` | Weighted articles in the last 24 hours against the company's usual day (up to 30 days back). 8x normal scores 100 |
 | `event_importance` | The most important tagged event: half the event type's importance from `topic.yaml`, half the AI's rating |
 | `sentiment_shift` | Distance between the last 24 hours' tone and the company's usual tone |
-| `market_reaction` | Latest session's price move and volume against the previous ~30 sessions. Needs 10+ sessions of prices no older than 4 days |
 
 Articles are weighted by trust: `announced` 1.0, `reported` 0.6, `commentary` 0.25; an
 `affected` company counts half. The user's weights (Settings, else `topic.yaml`) combine
-the factors; a factor with no data is left out and the others are rescaled. Each row in
-`signal_scores` stores every factor's inputs, so the app can explain the number.
+the factors.
+
+The market's reaction is not in the score: only US stocks have prices, so it made scores
+incomparable, and strong news the market hasn't reacted to is a reason to look, not to
+rank lower. It is stored next to the score as a label, from the latest completed session
+against the previous ~30: `moving_with_news`, `moving_against_news` (big move the
+opposite way to the news tone), `not_priced_in_yet` (notable news, quiet price and
+volume), `small_move` or `no_price_data`. Each row in `signal_scores` keeps every
+input, so the app can explain the number.
 
 ## Schema changes
 

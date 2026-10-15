@@ -1,22 +1,25 @@
 """The 0-100 signal score. Plain arithmetic, no AI.
 
-Four factors, each scored 0-100, combined with the user's weights:
+Three news factors, each scored 0-100, combined with the user's weights:
 
 - news_volume: weighted articles in the last 24 hours against the company's normal day.
 - event_importance: the most important thing that happened, by event type and the
   AI's importance rating.
 - sentiment_shift: how far today's tone is from the company's usual tone.
-- market_reaction: unusual price move and trading volume on the latest session.
 
 Articles count by how much they can be trusted: an announcement more than a rumour,
 a rumour more than an opinion piece; the main subject more than an affected company.
-A factor without data (no prices yet) is left out and the weights are rescaled.
+
+The market's reaction (price move and volume) is deliberately not part of the score.
+Only some stocks have prices (free data is US only), so including it made scores
+incomparable; and strong news the market hasn't reacted to yet is a reason to look,
+not a reason to rank lower. It is stored next to the score as a label instead.
 """
 
 import datetime as dt
 import math
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -44,6 +47,11 @@ BASELINE_DAYS = 30
 VOLUME_FULL_SCORE_RATIO = 8  # 8x the normal news flow scores 100
 MIN_PRICE_HISTORY = 10  # sessions needed before market reaction counts
 MAX_PRICE_AGE_DAYS = 4  # covers a weekend plus a holiday
+NEWS_FACTORS = ("news_volume", "event_importance", "sentiment_shift")
+# Market label thresholds, on the 0-100 market-reaction scale.
+BIG_REACTION = 50
+SMALL_REACTION = 20
+NOTABLE_NEWS = 40  # signal score above which a quiet market is worth pointing out
 
 
 @dataclass
@@ -52,13 +60,6 @@ class Tag:
     weight: float  # basis x role
     sentiment: float
     importance: float  # 0-1, event type and AI rating combined
-
-
-@dataclass
-class Score:
-    company_id: int
-    score: float
-    components: dict = field(default_factory=dict)
 
 
 def _clamp01(x: float) -> float:
@@ -123,16 +124,28 @@ def score_company(
             "usual_tone": round(mood_usual, 3),
         },
     }
-    if reaction is not None:
-        parts["market_reaction"] = reaction
-
-    used = {k: w for k, w in weights.items() if k in parts and w > 0}
+    used = {k: weights.get(k, 0) for k in NEWS_FACTORS if weights.get(k, 0) > 0}
     total_weight = sum(used.values())
     score = sum(parts[k]["score"] * w for k, w in used.items()) / total_weight if used else 0.0
     return round(score, 2), {
         "factors": parts,
         "weights_used": {k: round(w / total_weight, 4) for k, w in used.items()},
+        "market": market_label(reaction, score, mood_now),
     }
+
+
+def market_label(reaction: dict | None, score: float, tone: float) -> dict:
+    """How the share price behaved, next to the news. Not part of the score."""
+    if reaction is None:
+        return {"label": "no_price_data"}
+    if reaction["score"] >= BIG_REACTION:
+        same_way = tone == 0 or (reaction["return_pct"] > 0) == (tone > 0)
+        label = "moving_with_news" if same_way else "moving_against_news"
+    elif reaction["score"] < SMALL_REACTION and score >= NOTABLE_NEWS:
+        label = "not_priced_in_yet"
+    else:
+        label = "small_move"
+    return {"label": label, **reaction}
 
 
 def compute_scores(

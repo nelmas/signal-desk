@@ -49,7 +49,6 @@ class ScoringWeights(BaseModel):
     news_volume: float = Field(ge=0)
     event_importance: float = Field(ge=0)
     sentiment_shift: float = Field(ge=0)
-    market_reaction: float = Field(ge=0)
 
     @model_validator(mode="after")
     def not_all_zero(self) -> "ScoringWeights":
