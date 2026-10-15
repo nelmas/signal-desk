@@ -11,7 +11,7 @@ backend/
   alembic/        database migrations
   topics/stocks/  topic config: markets, sources, event types, companies.csv
   tests/          pytest (runs on an embedded Postgres, no setup needed)
-frontend/         Next.js app (phase 6)
+frontend/         Next.js web app: briefing, watchlist, news, stock pages
 ```
 
 ## Setup
@@ -167,6 +167,34 @@ Stockholm) and only once a day. `--force` replaces today's briefing.
    reading order and stored as `citations`; ideas are stored in `ideas` for the track
    record.
 
+## Web app
+
+`frontend/` is a Next.js app that reads the same Neon database directly (Neon's HTTP
+driver), so there is no separate API server to host. Pages: morning briefing (with past
+dates), signal watchlist, news feed (press releases or news, all or tagged only, search),
+stock detail (price and coverage chart, score breakdown, an explanation built from the
+score's stored inputs with numbered sources) and the track record log.
+
+Private by design: one password (`APP_PASSWORD`) and a signed 30-day session cookie
+(`SESSION_SECRET`). `proxy.ts` sends every page without a valid session to `/login`, and
+every database query checks the session again (`lib/session.ts`), so a missed route can't
+leak data. Pages are never indexed or framed. Prices are only shown here, as Twelve Data's
+terms require.
+
+```powershell
+cd frontend
+npm install
+npm run dev          # http://localhost:3000 (uses ../.env)
+npm test             # unit tests (auth, explanation, chart, paging)
+npm run build
+```
+
+### Deploying (Vercel Hobby, free)
+
+Import the GitHub repo in Vercel, set Root Directory to `frontend`, and add the
+environment variables `DATABASE_URL` (the read-only role's connection string),
+`APP_PASSWORD` and `SESSION_SECRET`.
+
 ## Signal score
 
 `signal-desk score` gives each company with recent news (plus the watchlist) a 0-100
@@ -229,6 +257,6 @@ free tier changes.
 3. AI tagging (companies checked against ticker list, event type, sentiment, summary) ✅
 4. Prices and the 0–100 signal score ✅ (US prices; Swedish prices pending a free source)
 5. Story clustering and briefing generation with citations ✅
-6. Web app: briefing, watchlist, news feed, stock detail
+6. Web app: briefing, watchlist, news feed, stock detail (built; deploying)
 7. Settings and daily email
 8. Track record
