@@ -2,23 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Dict } from "@/lib/i18n";
 
 const LINKS = [
-  { href: "/", label: "Morning briefing" },
-  { href: "/watchlist", label: "Signal watchlist" },
-  { href: "/news", label: "News feed" },
-  { href: "/record", label: "Track record" },
-  { href: "/settings", label: "Settings" },
+  { href: "/", key: "briefing" },
+  { href: "/watchlist", key: "watchlist" },
+  { href: "/news", key: "news" },
+  { href: "/record", key: "record" },
+  { href: "/settings", key: "settings" },
 ] as const;
 
-export function Nav() {
+export function Nav({ labels }: { labels: Dict["nav"] }) {
   const path = usePathname();
   const current = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   return (
-    <nav className="tabs" aria-label="Sections">
+    <nav className="tabs" aria-label={labels.sections}>
       {LINKS.map((l) => (
         <Link key={l.href} href={l.href} aria-current={current(l.href) ? "page" : undefined}>
-          {l.label}
+          {labels[l.key]}
         </Link>
       ))}
     </nav>

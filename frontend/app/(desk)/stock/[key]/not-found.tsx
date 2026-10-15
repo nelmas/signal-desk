@@ -1,13 +1,14 @@
 import Link from "next/link";
+import { getDict } from "@/lib/lang";
 
-export default function StockNotFound() {
+export default async function StockNotFound() {
+  const { t } = await getDict();
   return (
     <div className="view-head">
-      <span className="eyebrow">Stock</span>
-      <h1>Not on the list</h1>
+      <span className="eyebrow">{t.stock.eyebrow}</span>
+      <h1>{t.stock.notFoundTitle}</h1>
       <p>
-        The app only knows companies on its verified list. <Link href="/watchlist">Back to the
-        watchlist</Link>.
+        {t.stock.notFoundText} <Link href="/watchlist">{t.stock.back}</Link>.
       </p>
     </div>
   );

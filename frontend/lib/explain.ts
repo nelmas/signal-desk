@@ -1,7 +1,8 @@
 // The stock page's "Why it's on the list": assembled from the score's stored inputs and
 // the tagged articles, with numbered sources. Code, not AI, so it can't make anything up.
 
-import { BASIS_LABEL, humanize, MARKET_LABEL, signed, toneWord } from "@/lib/format";
+import { eventLabel, num, signed, toneWord } from "@/lib/format";
+import { dict, type Lang } from "@/lib/i18n";
 import type { ScoreComponents } from "@/lib/types";
 
 export type ExplainArticle = {
@@ -28,7 +29,9 @@ export function explainScore(
   components: ScoreComponents | null,
   articles: ExplainArticle[],
   since: Date,
+  lang: Lang = "en",
 ): Explanation {
+  const d = dict(lang);
   const recent = articles.filter((a) => new Date(a.published_at) >= since);
   const f = components?.factors ?? {};
   const sources: Explanation["sources"] = [];
@@ -43,14 +46,11 @@ export function explainScore(
   const count = f.news_volume?.articles_24h ?? recent.length;
   const usual = f.news_volume?.usual_per_day;
   if (count === 0) {
-    sentences.push({ text: `${name} had no tagged news in the last 24 hours.`, cites: [] });
+    sentences.push({ text: d.explain.noNews(name), cites: [] });
     return { sentences, sources };
   }
   sentences.push({
-    text:
-      usual !== undefined
-        ? `${name} had ${count} article${count === 1 ? "" : "s"} in the last 24 hours, against a usual ${usual.toFixed(1)} a day.`
-        : `${name} had ${count} article${count === 1 ? "" : "s"} in the last 24 hours.`,
+    text: d.explain.count(name, count, usual !== undefined ? num(usual, 1, lang) : undefined),
     cites: [],
   });
 
@@ -61,9 +61,10 @@ export function explainScore(
       a.importance * (BASIS_TRUST[a.basis ?? ""] ?? 0.6),
   )[0];
   if (top) {
-    const basis = BASIS_LABEL[top.basis ?? ""]?.toLowerCase() ?? "reported";
+    const basis = (d.basis[(top.basis ?? "reported") as keyof typeof d.basis] ?? d.basis.reported).toLowerCase();
+    const event = top.event_type ? eventLabel(top.event_type, lang).toLowerCase() : d.explain.news;
     sentences.push({
-      text: `The main event was ${humanize(top.event_type).toLowerCase() || "news"} (${basis}): ${top.ai_summary ?? top.title}`,
+      text: d.explain.main(event, basis, top.ai_summary ?? top.title),
       cites: [cite(top)],
     });
   }
@@ -75,21 +76,26 @@ export function explainScore(
     sentences.push({
       text:
         usualTone !== undefined && Math.abs(tone - usualTone) >= 0.2
-          ? `Coverage was ${toneWord(tone)} (${signed(tone, 2)}), a shift from its usual ${toneWord(usualTone)} tone (${signed(usualTone, 2)}).`
-          : `Coverage was ${toneWord(tone)} (${signed(tone, 2)}), in line with its usual tone.`,
+          ? d.explain.toneShift(toneWord(tone, lang), signed(tone, 2, lang), toneWord(usualTone, lang), signed(usualTone, 2, lang))
+          : d.explain.toneSame(toneWord(tone, lang), signed(tone, 2, lang)),
       cites: others,
     });
   }
 
   const m = components?.market;
   if (m && m.label !== "no_price_data" && m.return_pct !== undefined) {
-    const vol = m.volume_ratio ? ` on ${m.volume_ratio.toFixed(1)}× normal volume` : "";
+    const label = d.market[m.label as keyof typeof d.market] ?? m.label;
     sentences.push({
-      text: `${MARKET_LABEL[m.label] ?? humanize(m.label)}: the shares moved ${signed(m.return_pct)}% in the last session${vol}, against a typical daily move of ${m.typical_move_pct?.toFixed(1)}%.`,
+      text: d.explain.market(
+        label,
+        signed(m.return_pct, 1, lang),
+        m.volume_ratio ? num(m.volume_ratio, 1, lang) : null,
+        num(m.typical_move_pct ?? 0, 1, lang),
+      ),
       cites: [],
     });
   } else {
-    sentences.push({ text: "No price data for this stock yet.", cites: [] });
+    sentences.push({ text: d.explain.noPrices, cites: [] });
   }
   return { sentences, sources };
 }

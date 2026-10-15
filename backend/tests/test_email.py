@@ -141,3 +141,18 @@ def test_test_email_sends_the_latest_briefing_in_any_language(db: Session) -> No
     fake = FakeResend()
     assert run(db, fake) == "no briefing for today yet"  # the scheduled send waits for Swedish
     assert run(db, fake, test=True) == "test email sent to me@example.com"
+
+
+def test_swedish_briefing_email_is_in_swedish(db: Session) -> None:
+    b = briefing(db)
+    b.language = "sv"
+    db.commit()
+    msg = build_message(b, "me@example.com", "https://desk.example")
+    assert msg.subject == "Signal Desk 15 okt: Volvo's record order"
+    assert "torsdag 15 oktober 2026" in msg.html
+    for words in ("Nyheter om dina innehav", "Viktigaste nyheterna", "Vad hände", "Källor",
+                  "Också i nyheterna: Apple.", "inte köp- eller säljråd", "Öppna hela briefen"):
+        assert words in msg.html, words
+    assert "News about your holdings" not in msg.html
+    assert msg.text.startswith("SIGNAL DESK - morgonbrief, torsdag 15 oktober 2026")
+    assert "Öppna i appen: https://desk.example" in msg.text

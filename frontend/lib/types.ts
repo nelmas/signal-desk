@@ -23,6 +23,7 @@ export type BriefingContent = {
     company: string;
     name: string;
     market: string;
+    market_label?: string;
     why_rise: Cited;
     risks: Cited;
     confidence: "low" | "medium" | "high";

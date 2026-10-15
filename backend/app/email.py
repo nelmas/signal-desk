@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.briefing.generate import briefing_options
+from app.briefing.labels import labels, long_date, short_date
 from app.briefing.render import render_text
 from app.config import Settings
 from app.models import Briefing
@@ -67,11 +68,14 @@ def _h(text: str) -> str:
 def render_html(briefing: Briefing, app_url: str | None = None) -> str:
     """Simple, inline-styled HTML that survives email clients."""
     c = briefing.content or {}
+    t = labels(briefing.language)
     parts = [
-        f'<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:{_INK};'
+        f'<div lang="{html.escape(briefing.language or "en")}" '
+        f'style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:{_INK};'
         f'max-width:640px;margin:0 auto;padding:16px">',
         f'<p style="margin:0;color:{_MUTED};font-size:12px;letter-spacing:.08em;'
-        f'text-transform:uppercase">Signal Desk · {briefing.date:%A %d %B %Y}</p>',
+        f'text-transform:uppercase">Signal Desk · '
+        f'{html.escape(long_date(briefing.date, briefing.language))}</p>',
     ]
     if c.get("stories"):
         parts.append(f'<h1 style="font-size:22px;margin:6px 0 12px">'
@@ -79,46 +83,44 @@ def render_html(briefing: Briefing, app_url: str | None = None) -> str:
     if c.get("overview", {}).get("text"):
         parts.append(_p(c["overview"]["text"], c["overview"]["cites"], "font-size:16px"))
 
-    parts.append(_h("News about your holdings"))
+    parts.append(_h(t["holdings"]))
     for h in c.get("holdings", []):
         who = f"{h['name']} ({h['share']})" if h.get("share") else h["name"]
         parts.append(_p(f"{who}: {h['text']}", h["cites"]))
     if c.get("holdings_also"):
-        parts.append(_p("Also in the news: " + ", ".join(c["holdings_also"]) + ".",
+        parts.append(_p(f"{t['also']} " + ", ".join(c["holdings_also"]) + ".",
                         style=f"color:{_MUTED}"))
     if not c.get("holdings"):
-        parts.append(_p("No news about your holdings.", style=f"color:{_MUTED}"))
+        parts.append(_p(t["no_holdings"], style=f"color:{_MUTED}"))
 
     if c.get("stories"):
-        parts.append(_h("Top stories"))
+        parts.append(_h(t["stories"]))
         for i, st in enumerate(c["stories"], 1):
             parts.append(f'<h3 style="font-size:15px;margin:16px 0 6px">{i}. '
                          f'{html.escape(st["headline"])}</h3>')
-            for label, key in (("What happened", "what_happened"),
-                               ("What it means", "what_it_means"),
-                               ("What it could lead to", "what_next")):
+            for label, key in (("happened", "what_happened"), ("means", "what_it_means"),
+                               ("next", "what_next")):
                 if st[key]["text"]:
-                    parts.append(_p(f"{label}: {st[key]['text']}", st[key]["cites"]))
+                    parts.append(_p(f"{t[label]}: {st[key]['text']}", st[key]["cites"]))
 
     if c.get("sectors"):
-        parts.append(_h("Sectors to keep an eye on"))
+        parts.append(_h(t["sectors"]))
         arrow = {"up": "↑", "down": "↓", "mixed": "→"}
         for s in c["sectors"]:
             parts.append(_p(f"{arrow.get(s['direction'], '→')} {s['name']}: {s['reason']}",
                             s["cites"]))
 
     if c.get("ideas"):
-        parts.append(_h("Stocks that could benefit"))
+        parts.append(_h(t["ideas"]))
         for idea in c["ideas"]:
             parts.append(f'<h3 style="font-size:15px;margin:16px 0 6px">'
-                         f'{html.escape(idea["name"])} · confidence {idea["confidence"]}</h3>')
-            parts.append(_p(f"Why it could rise: {idea['why_rise']['text']}",
-                            idea["why_rise"]["cites"]))
-            parts.append(_p(f"What could go wrong: {idea['risks']['text']}",
-                            idea["risks"]["cites"]))
+                         f'{html.escape(idea["name"])} · {t["confidence"]} '
+                         f'{html.escape(t.get(idea["confidence"], idea["confidence"]))}</h3>')
+            parts.append(_p(f"{t['why']}: {idea['why_rise']['text']}", idea["why_rise"]["cites"]))
+            parts.append(_p(f"{t['risks']}: {idea['risks']['text']}", idea["risks"]["cites"]))
 
     if c.get("sources"):
-        parts.append(_h("Sources"))
+        parts.append(_h(t["sources"]))
         parts.append(f'<ol style="padding-left:22px;color:{_MUTED};font-size:13px">')
         for s in c["sources"]:
             parts.append(
@@ -129,20 +131,22 @@ def render_html(briefing: Briefing, app_url: str | None = None) -> str:
         parts.append("</ol>")
     if app_url:
         link = html.escape(app_url, quote=True)
-        parts.append(f'<p style="margin:18px 0 0">Open the full briefing, watchlist and stock '
-                     f'pages in <a href="{link}" style="color:{_ACCENT}">Signal Desk</a>.</p>')
+        parts.append(f'<p style="margin:18px 0 0">{html.escape(t["open_app"])} '
+                     f'<a href="{link}" style="color:{_ACCENT}">Signal Desk</a>.</p>')
     parts.append(f'<p style="margin-top:22px;color:{_MUTED};font-size:12px">'
-                 f'{html.escape(c.get("disclaimer", ""))}</p></div>')
+                 f'{html.escape(t["disclaimer"])}</p></div>')
     return "\n".join(parts)
 
 
 def build_message(briefing: Briefing, to: str, app_url: str | None) -> Message:
     c = briefing.content or {}
-    lead = c["stories"][0]["headline"] if c.get("stories") else "Morning briefing"
+    t = labels(briefing.language)
+    lead = c["stories"][0]["headline"] if c.get("stories") else t["briefing"]
+    day = short_date(briefing.date, briefing.language)
     return Message(
         to=to,
-        subject=f"Signal Desk {briefing.date:%d %b}: {lead}"[:150],
-        text=render_text(briefing) + (f"\n\nOpen in the app: {app_url}\n" if app_url else ""),
+        subject=f"{t['subject']} {day}: {lead}"[:150],
+        text=render_text(briefing) + (f"\n\n{t['open_app_text']} {app_url}\n" if app_url else ""),
         html=render_html(briefing, app_url),
     )
 

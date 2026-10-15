@@ -11,14 +11,14 @@ import {
   SESSION_DAYS,
 } from "@/lib/auth";
 
-export type LoginState = { error: string | null };
+export type LoginState = { wrong: boolean };
 
 export async function login(_prev: LoginState, form: FormData): Promise<LoginState> {
   const { password, secret } = authConfig();
   if (!passwordMatches(String(form.get("password") ?? ""), password)) {
     // Slow down guessing; one person never needs to try twice a second.
     await new Promise((resolve) => setTimeout(resolve, 1200));
-    return { error: "Wrong password." };
+    return { wrong: true };
   }
   (await cookies()).set(SESSION_COOKIE, createSessionToken(secret), {
     httpOnly: true,

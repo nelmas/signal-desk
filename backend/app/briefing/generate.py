@@ -19,6 +19,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.ai import LLMClient, LLMRateLimited, LLMUnavailable
+from app.briefing.labels import fund_share, labels
 from app.briefing.stories import StoryCandidate, build_stories
 from app.config import Settings
 from app.models import (
@@ -43,10 +44,6 @@ _FUND_SHARE = re.compile(r"(\d+(?:\.\d+)?)% of fund")
 IDEA_CANDIDATES = 8
 IDEA_MIN_SCORE = 40
 TEXT_LIMIT = 600  # characters per text part, a safety net above the prompt's word limits
-DISCLAIMER = (
-    "Ideas to research, not buy or sell advice. Every claim links to its sources. "
-    "Companies come only from the app's verified list."
-)
 MARKET_WORDING = {
     "not_priced_in_yet": "no clear price reaction yet",
     "moving_with_news": "the share price is moving in the direction of the news",
@@ -369,6 +366,7 @@ def _idea_candidates(
             "score": float(score),
             "tone": float(tone),
             "market": MARKET_WORDING.get(label, label),
+            "market_label": label,
             "stories": [pool_index[s.key] for s in stories],
             "article_ids": {a.id for s in stories for a in s.for_prompt()},
         })
@@ -409,7 +407,7 @@ def _validate(
         citations.extend((ref, i) for i in ids)
         return ids
 
-    content: dict[str, Any] = {"disclaimer": DISCLAIMER}
+    content: dict[str, Any] = {"disclaimer": labels(opts.language)["disclaimer"]}
     ov = answer.get("overview") or {}
     ov_text, ov_ids = _text(ov.get("text")), valid(ov.get("cites"))
     if not (ov_text and ov_ids):
@@ -426,7 +424,7 @@ def _validate(
         content["holdings"].append({
             "company": story.company_key,
             "name": story.company_name,
-            "share": f"{share.group(1)}% of your fund" if share else None,
+            "share": fund_share(share.group(1), opts.language) if share else None,
             "text": lead.summary,
             "cites": [lead.id],
         })
@@ -507,6 +505,7 @@ def _validate(
             "name": cand["name"],
             "company_id": cand["company_id"],
             "market": cand["market"],
+            "market_label": cand["market_label"],
             "why_rise": {"text": why, "cites": record(f"idea:{cand['key']}:why", why_ids)},
             "risks": {
                 "text": _text(idea.get("risks")),

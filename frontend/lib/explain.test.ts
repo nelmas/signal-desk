@@ -60,8 +60,8 @@ describe("explainScore", () => {
 describe("format", () => {
   it("formats dates without time zone surprises", () => {
     expect(longDate("2026-10-15")).toBe("Thursday 15 October 2026");
-    expect(when("2026-10-15T06:30:00Z", NOW)).toBe("08:30"); // same Stockholm day
-    expect(when("2026-10-13T06:30:00Z", NOW)).toBe("13 Oct, 08:30");
+    expect(when("2026-10-15T06:30:00Z", "en", NOW)).toBe("08:30"); // same Stockholm day
+    expect(when("2026-10-13T06:30:00Z", "en", NOW)).toBe("13 Oct, 08:30");
   });
 
   it("formats labels and signs", () => {
@@ -69,5 +69,26 @@ describe("format", () => {
     expect(signed(3.14)).toBe("+3.1");
     expect(signed(-0.5, 2)).toBe("−0.50");
     expect(stripInlineIds("Fabs [1988], while buybacks [12, 13] grew.")).toBe("Fabs, while buybacks grew.");
+  });
+});
+
+describe("Swedish", () => {
+  it("explains and formats in Swedish", () => {
+    const components = {
+      factors: {
+        news_volume: { score: 80, articles_24h: 1, usual_per_day: 0.5 },
+        sentiment_shift: { score: 10, tone_24h: 0.2, usual_tone: 0.1 },
+      },
+      market: { label: "small_move", return_pct: 1.25, typical_move_pct: 1.1, volume_ratio: null },
+    };
+    const e = explainScore("Volvo", components, [article(1, 2, { basis: "announced" })], SINCE, "sv");
+    expect(e.sentences.map((s) => s.text)).toEqual([
+      "Volvo hade 1 artikel de senaste 24 timmarna, mot normalt 0,5 per dag.",
+      "Den viktigaste händelsen var order/avtal (meddelat): Summary 1.",
+      "Tonen var positiv (+0,20), i linje med den vanliga.",
+      "Liten rörelse: aktien rörde sig +1,3 % senaste handelsdagen, mot en normal dagsrörelse på 1,1 %.",
+    ]);
+    expect(longDate("2026-10-15", "sv")).toBe("torsdag 15 oktober 2026");
+    expect(when("2026-10-13T06:30:00Z", "sv", NOW)).toMatch(/^13 okt\.? 08:30$/);
   });
 });

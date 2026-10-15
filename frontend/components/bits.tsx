@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Dict } from "@/lib/i18n";
 
 /** [1][2] markers that jump to the numbered source list on the same page. */
 export function Cites({ ns, prefix = "src" }: { ns: number[]; prefix?: string }) {
@@ -17,7 +18,7 @@ export function Cites({ ns, prefix = "src" }: { ns: number[]; prefix?: string })
 export function ScoreBar({ value, label }: { value: number; label?: string }) {
   const pct = Math.max(0, Math.min(100, value));
   return (
-    <div className="bar" role="img" aria-label={label ?? `${pct.toFixed(0)} of 100`}>
+    <div className="bar" role="img" aria-label={label ?? `${pct.toFixed(0)} / 100`}>
       <span style={{ width: `${pct}%` }} />
     </div>
   );
@@ -29,11 +30,12 @@ export function CompanyLink({ k, name }: { k: string; name: string }) {
 
 const LEVELS = { low: 1, medium: 2, high: 3 } as const;
 
-export function Confidence({ level }: { level: keyof typeof LEVELS }) {
+export function Confidence({ level, t }: { level: keyof typeof LEVELS; t: Dict["confidence"] }) {
   const on = LEVELS[level] ?? 1;
+  const word = t[level] ?? level;
   return (
-    <span className="conf" aria-label={`Confidence: ${level}`}>
-      Confidence {[1, 2, 3].map((i) => <i key={i} className={i <= on ? "on" : undefined} />)} {level}
+    <span className="conf" aria-label={`${t.label}: ${word}`}>
+      {t.label} {[1, 2, 3].map((i) => <i key={i} className={i <= on ? "on" : undefined} />)} {word}
     </span>
   );
 }

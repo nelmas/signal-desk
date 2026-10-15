@@ -5,6 +5,7 @@
 
 import { useRef, useState } from "react";
 import { countAxis, priceDomain, ticks, type ChartDay } from "@/lib/chart";
+import { dict, type Lang } from "@/lib/i18n";
 
 const W = 760;
 const L = 52;
@@ -15,13 +16,20 @@ const TOP2 = 228;
 const H2 = 84;
 const HEIGHT = TOP2 + H2 + 26;
 
-function label(day: string): string {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", {
-    day: "numeric", month: "short", timeZone: "UTC",
-  });
-}
-
-export function PriceNewsChart({ days, currency }: { days: ChartDay[]; currency: string | null }) {
+export function PriceNewsChart({
+  days,
+  currency,
+  lang,
+}: {
+  days: ChartDay[];
+  currency: string | null;
+  lang: Lang; // a plain string: functions can't be passed from the server to the browser
+}) {
+  const { chart: t, locale } = dict(lang);
+  const label = (day: string) =>
+    new Date(`${day}T00:00:00Z`).toLocaleDateString(locale, {
+      day: "numeric", month: "short", timeZone: "UTC",
+    });
   const [hover, setHover] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const n = days.length;
@@ -55,12 +63,13 @@ export function PriceNewsChart({ days, currency }: { days: ChartDay[]; currency:
         className="chart"
         viewBox={`0 0 ${W} ${HEIGHT}`}
         role="img"
-        aria-label={`Closing price${currency ? ` in ${currency}` : ""} and tagged articles per day, last ${n} days`}
+        aria-label={t.aria(currency, n)}
         onPointerMove={onMove}
         onPointerLeave={() => setHover(null)}
       >
         <text className="label" x={L} y={TOP1 - 4}>
-          Close{currency ? `, ${currency}` : ""}
+          {t.close}
+          {currency ? `, ${currency}` : ""}
         </text>
         {closes.length > 0 ? (
           <>
@@ -81,12 +90,12 @@ export function PriceNewsChart({ days, currency }: { days: ChartDay[]; currency:
           </>
         ) : (
           <text x={(L + W) / 2} y={TOP1 + H1 / 2} textAnchor="middle">
-            No price data for this stock
+            {t.noPrices}
           </text>
         )}
 
         <text className="label" x={L} y={TOP2 - 8}>
-          Tagged articles per day
+          {t.articles}
         </text>
         {nTicks.map((v) => (
           <g key={`n${v}`}>
@@ -124,9 +133,9 @@ export function PriceNewsChart({ days, currency }: { days: ChartDay[]; currency:
         >
           {label(h.day)}
           <br />
-          {h.close !== null ? `Close ${h.close.toFixed(2)}` : "No trading"}
+          {h.close !== null ? `${t.close} ${h.close.toFixed(2)}` : t.noTrading}
           <br />
-          {h.articles} article{h.articles === 1 ? "" : "s"}
+          {t.nArticles(h.articles)}
         </div>
       )}
     </div>

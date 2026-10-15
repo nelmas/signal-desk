@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CompanyLink, ScoreBar } from "@/components/bits";
-import { longDate, MARKET_LABEL } from "@/lib/format";
+import { longDate } from "@/lib/format";
+import { getDict } from "@/lib/lang";
 import { getScores } from "@/lib/queries";
 
-export const metadata: Metadata = { title: "Signal watchlist" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getDict()).t.nav.watchlist };
+}
 
 export default async function WatchlistPage({
   searchParams,
@@ -13,49 +16,49 @@ export default async function WatchlistPage({
 }) {
   const { show } = await searchParams;
   const mine = show === "mine";
-  const { date, rows: all } = await getScores(60);
+  const [{ date, rows: all }, { lang, t }] = await Promise.all([getScores(60), getDict()]);
   const rows = mine ? all.filter((r) => r.watched) : all.slice(0, 40);
+  const w = t.watchlist;
 
   return (
     <>
       <div className="view-head">
-        <span className="eyebrow">Signal watchlist{date ? ` · ${longDate(date)}` : ""}</span>
-        <h1>Highest signal scores today</h1>
-        <p>
-          The 0–100 score is plain arithmetic, not AI: news volume against normal, how important
-          the events are, and how far the tone has shifted. How the share price reacted is shown
-          beside it, not mixed in.
-        </p>
+        <span className="eyebrow">
+          {w.eyebrow}
+          {date ? ` · ${longDate(date, lang)}` : ""}
+        </span>
+        <h1>{w.title}</h1>
+        <p>{w.intro}</p>
       </div>
-      <div className="filters" role="group" aria-label="Show">
+      <div className="filters" role="group">
         <Link href="/watchlist" aria-current={!mine ? "true" : undefined}>
-          All companies
+          {w.all}
         </Link>
         <Link href="/watchlist?show=mine" aria-current={mine ? "true" : undefined}>
-          My watchlist
+          {w.mine}
         </Link>
       </div>
       <div className="panel tbl-wrap">
         {rows.length === 0 ? (
-          <p className="empty">No scores yet. They appear after the first hourly run with news.</p>
+          <p className="empty">{w.empty}</p>
         ) : (
           <table>
             <thead>
               <tr>
                 <th>#</th>
-                <th>Stock</th>
-                <th>Signal score</th>
-                <th className="num">Articles 24h</th>
-                <th className="num">Volume</th>
-                <th className="num">Importance</th>
-                <th className="num">Tone shift</th>
-                <th>Price</th>
+                <th>{w.cols.stock}</th>
+                <th>{w.cols.score}</th>
+                <th className="num">{w.cols.articles}</th>
+                <th className="num">{w.cols.volume}</th>
+                <th className="num">{w.cols.importance}</th>
+                <th className="num">{w.cols.tone}</th>
+                <th>{w.cols.price}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => {
                 const f = r.components.factors;
-                const label = r.components.market?.label ?? "no_price_data";
+                const label = (r.components.market?.label ?? "no_price_data") as keyof typeof t.market;
                 return (
                   <tr key={r.key}>
                     <td className="mono">{i + 1}</td>
@@ -63,7 +66,7 @@ export default async function WatchlistPage({
                       <CompanyLink k={r.key} name={r.name} />
                       <div className="chips">
                         {r.symbol && <span className="ticker">{r.symbol}</span>}
-                        {r.holding && <span className="chip hold">Holding</span>}
+                        {r.holding && <span className="chip hold">{w.holding}</span>}
                       </div>
                     </td>
                     <td>
@@ -80,7 +83,7 @@ export default async function WatchlistPage({
                       <span
                         className={`chip${label === "moving_with_news" ? " pos" : ""}${label === "moving_against_news" ? " neg" : ""}`}
                       >
-                        {MARKET_LABEL[label] ?? label}
+                        {t.market[label] ?? label}
                       </span>
                     </td>
                   </tr>
