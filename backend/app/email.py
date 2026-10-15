@@ -217,11 +217,10 @@ def send_due_briefing(
     local = now.astimezone(ZoneInfo(opts.timezone))
     if not test and local.time() < opts.send_time:
         return "before send time"
-    briefing = session.scalars(
-        select(Briefing)
-        .where(Briefing.topic == topic.key, Briefing.language == opts.language)
-        .order_by(Briefing.date.desc())
-    ).first()
+    query = select(Briefing).where(Briefing.topic == topic.key)
+    if not test:  # a test sends the latest briefing, whatever its language
+        query = query.where(Briefing.language == opts.language)
+    briefing = session.scalars(query.order_by(Briefing.date.desc(), Briefing.id.desc())).first()
     if briefing is None or (briefing.date != local.date() and not test):
         return "no briefing for today yet"
     if briefing.sent_at is not None and not test:

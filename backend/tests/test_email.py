@@ -131,3 +131,13 @@ def test_test_email_ignores_settings_and_does_not_count_as_sent(db: Session) -> 
     assert run(db, fake, now=early, test=True) == "test email sent to me@example.com"
     db.refresh(b)
     assert b.sent_at is None and len(fake.sent) == 1
+
+
+def test_test_email_sends_the_latest_briefing_in_any_language(db: Session) -> None:
+    briefing(db)  # English
+    stored = db.get(Setting, "briefing")
+    stored.value = {**stored.value, "language": "sv"}
+    email_on(db)
+    fake = FakeResend()
+    assert run(db, fake) == "no briefing for today yet"  # the scheduled send waits for Swedish
+    assert run(db, fake, test=True) == "test email sent to me@example.com"
