@@ -197,7 +197,10 @@ def test_briefing_is_written_checked_numbered_and_stored(db: Session, news) -> N
                                                       "Apple reportedly cuts orders"]
     # A part without its own sources inherits the story's facts.
     assert c["stories"][0]["what_it_means"]["cites"] == c["stories"][0]["what_happened"]["cites"]
-    assert c["holdings"][0]["name"] == "NVIDIA Corporation"
+    assert c["holdings"] == [{
+        "company": "nvidia", "name": "NVIDIA Corporation", "share": "5.7% of your fund",
+        "text": "Summary of Nvidia signs supply deal", "cites": [3],
+    }]
     assert c["ideas"][0]["market"] == "no clear price reaction yet"
 
     assert db.scalar(select(func.count()).select_from(Story)) == 2
@@ -241,10 +244,25 @@ def test_inventions_and_unsourced_claims_are_dropped(db: Session, news) -> None:
 
     c = run(db, FakeGemini(bad)).content
     assert c["overview"]["text"] == ""
-    assert c["holdings"] == []
+    assert [h["company"] for h in c["holdings"]] == ["nvidia"]  # from code, not the AI
     assert [s["headline"] for s in c["stories"]] == ["Apple"]
     assert c["sectors"] == [] and c["ideas"] == []
     assert db.scalar(select(func.count()).select_from(Idea)) == 0
+    dropped = c["checks"]["dropped"]
+    assert "story 99: not one of the offered stories" in dropped
+    assert "idea 'made-up-co': not an offered candidate" in dropped
+    assert "idea 'volvo': missing reasons or its own sources" in dropped
+    assert "overview: no valid sources" in dropped
+
+
+def test_ideas_may_name_the_company_instead_of_its_key(db: Session, news) -> None:
+    def by_name(prompt: str) -> dict:
+        answer = good_answer(news)(prompt)
+        answer["ideas"][0]["company"] = "AB Volvo"
+        return answer
+
+    ideas = run(db, FakeGemini(by_name)).content["ideas"]
+    assert [i["company"] for i in ideas] == ["volvo"]
 
 
 def test_due_after_send_time_and_once_a_day(db: Session, news) -> None:

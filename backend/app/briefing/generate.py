@@ -1,7 +1,8 @@
 """Write the morning briefing: one AI call, then strict checks before anything is saved.
 
-The AI only sees the top stories, your holdings' news and the score leaders, each
-with numbered articles. Its answer is checked against that input:
+The AI only sees the top stories and the score leaders, each with numbered articles.
+The holdings section is written by code from the tagged summaries, so it never
+depends on the AI. Its answer is checked against that input:
 - every citation must be an article it was given; a part without one is dropped,
 - every company must be one it was given (so it can never invent a company),
 - counts, enums and lengths are enforced.
@@ -9,6 +10,7 @@ Citations are then renumbered [1], [2], … in reading order.
 """
 
 import datetime as dt
+import re
 from dataclasses import dataclass
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -30,10 +32,13 @@ from app.models import (
     StoryArticle,
 )
 from app.topic import TopicConfig
+from app.universe import clean_name
 
 PURPOSE = "briefing"
 PROMPT_VERSION = "brief-v1"
 STORY_CANDIDATES_EXTRA = 3  # the AI may skip weak stories, so offer a few more
+MAX_HOLDING_LINES = 5  # more holdings in the news are listed by name only
+_FUND_SHARE = re.compile(r"(\d+(?:\.\d+)?)% of fund")
 IDEA_CANDIDATES = 8
 IDEA_MIN_SCORE = 40
 TEXT_LIMIT = 600  # characters per text part, a safety net above the prompt's word limits
@@ -57,18 +62,6 @@ RESPONSE_SCHEMA: dict[str, Any] = {
             "type": "OBJECT",
             "properties": {"text": {"type": "STRING"}, "cites": _CITES},
             "required": ["text", "cites"],
-        },
-        "holdings": {
-            "type": "ARRAY",
-            "items": {
-                "type": "OBJECT",
-                "properties": {
-                    "company": {"type": "STRING"},
-                    "text": {"type": "STRING"},
-                    "cites": _CITES,
-                },
-                "required": ["company", "text", "cites"],
-            },
         },
         "stories": {
             "type": "ARRAY",
@@ -117,7 +110,7 @@ RESPONSE_SCHEMA: dict[str, Any] = {
             },
         },
     },
-    "required": ["overview", "holdings", "stories", "sectors", "ideas"],
+    "required": ["overview", "stories", "sectors", "ideas"],
 }
 
 
@@ -190,8 +183,6 @@ Be plain and specific; no hype, no exclamation marks.
 
 Sections:
 - overview: what mattered most, at most 70 words.
-- holdings: one entry per holding listed under HOLDINGS, at most 35 words each. If the
-  holding note gives the share of the reader's fund, mention it ("8% of your fund").
 - stories: up to {opts.max_stories} of the STORIES, most important first. You may skip a
   story that is thin or routine. For each, at most 40 words per part:
   what_happened (facts), what_it_means (why it matters, grounded in the facts),
@@ -217,12 +208,7 @@ def _article_lines(story: StoryCandidate) -> str:
     )
 
 
-def user_prompt(
-    stories: list[StoryCandidate],
-    holdings: list[StoryCandidate],
-    ideas: list[dict],
-    when: dt.date,
-) -> str:
+def user_prompt(stories: list[StoryCandidate], ideas: list[dict], when: dt.date) -> str:
     parts = [f"DATE: {when:%A %d %B %Y}", "", "STORIES:"]
     for i, s in enumerate(stories, 1):
         parts.append(
@@ -230,13 +216,6 @@ def user_prompt(
             f" event {s.event_type}, signal score {s.signal_score:.0f}, tone {s.tone:+.2f}"
         )
         parts.append(_article_lines(s))
-    parts += ["", "HOLDINGS:"]
-    if holdings:
-        for s in holdings:
-            parts.append(f"{s.company_name} (key {s.company_key}); note: {s.holding_note or '-'}")
-            parts.append(_article_lines(s))
-    else:
-        parts.append("(no news about holdings)")
     parts += ["", "IDEA CANDIDATES:"]
     for c in ideas or [{"none": True}]:
         if c.get("none"):
@@ -293,7 +272,7 @@ def generate_briefing(
                     purpose=PURPOSE,
                     prompt_version=PROMPT_VERSION,
                     system=system_prompt(topic, opts),
-                    user=user_prompt(story_pool, holding_stories, idea_pool, day),
+                    user=user_prompt(story_pool, idea_pool, day),
                     schema=RESPONSE_SCHEMA,
                     temperature=0.3,
                 )
@@ -387,8 +366,9 @@ def _validate(
     opts: BriefingOptions,
 ) -> tuple[dict, list[tuple[str, int]]]:
     """Keep only what the input supports. Returns content and (ref, article id) citations."""
-    allowed = {a.id for s in [*stories, *holdings] for a in s.for_prompt()}
+    allowed = {a.id for s in stories for a in s.for_prompt()}
     citations: list[tuple[str, int]] = []
+    dropped: list[str] = []
 
     def cites(raw: object, ref: str, fallback: list[int] | None = None) -> list[int]:
         ids = [i for i in dict.fromkeys(raw if isinstance(raw, list) else []) if i in allowed]
@@ -404,20 +384,21 @@ def _validate(
         "cites": ov_cites,
     }
 
-    by_key = {s.company_key: s for s in holdings}
-    content["holdings"], done = [], set()
-    for h in answer.get("holdings") or []:
-        story = by_key.get(h.get("company")) if isinstance(h, dict) else None
-        if story is None or story.company_key in done or not _text(h.get("text")):
-            continue
-        own = {a.id for a in story.for_prompt()}
-        ids = cites([i for i in h.get("cites") or [] if i in own], f"holding:{story.company_key}")
-        if ids:
-            done.add(story.company_key)
-            content["holdings"].append({
-                "company": story.company_key, "name": story.company_name,
-                "note": story.holding_note, "text": _text(h.get("text")), "cites": ids,
-            })
+    # Holdings: one line per holding in the news, from the tagged summary of its best
+    # article. Written by code, so it can't be dropped or invented.
+    content["holdings"] = []
+    for story in holdings[:MAX_HOLDING_LINES]:
+        lead = story.lead
+        share = _FUND_SHARE.search(story.holding_note or "")
+        citations.append((f"holding:{story.company_key}", lead.id))
+        content["holdings"].append({
+            "company": story.company_key,
+            "name": story.company_name,
+            "share": f"{share.group(1)}% of your fund" if share else None,
+            "text": lead.summary,
+            "cites": [lead.id],
+        })
+    content["holdings_also"] = [s.company_name for s in holdings[MAX_HOLDING_LINES:]]
 
     content["stories"], used = [], set()
     for st in answer.get("stories") or []:
@@ -425,6 +406,7 @@ def _validate(
             continue
         n = st.get("story")
         if not isinstance(n, int) or not 1 <= n <= len(stories) or n in used:
+            dropped.append(f"story {n!r}: not one of the offered stories")
             continue
         if len(content["stories"]) >= opts.max_stories:
             break
@@ -433,6 +415,7 @@ def _validate(
         ref = f"story:{n}"
         facts = cites(st.get("what_happened_cites"), f"{ref}:what")
         if not facts:
+            dropped.append(f"story {n}: no valid sources for what happened")
             continue  # a story must rest on its sources
         used.add(n)
         s = stories[n - 1]
@@ -459,25 +442,31 @@ def _validate(
             break
         name, reason = _text(sec.get("name"))[:60], _text(sec.get("reason"))
         ids = cites(sec.get("cites"), f"sector:{i}")
-        if name and reason and ids:
+        if not (name and reason and ids):
+            dropped.append(f"sector {name!r}: missing reason or valid sources")
+        else:
             direction = sec.get("direction") if sec.get("direction") in ("up", "down") else "mixed"
             content["sectors"].append(
                 {"name": name, "direction": direction, "reason": reason, "cites": ids}
             )
 
     by_idea = {c["key"]: c for c in ideas}
+    by_idea.update({clean_name(c["name"]): c for c in ideas})  # models often use the name
     content["ideas"], picked = [], set()
     for idea in answer.get("ideas") or []:
         if len(content["ideas"]) >= opts.max_ideas or not isinstance(idea, dict):
             break
-        cand = by_idea.get(idea.get("company"))
+        named = str(idea.get("company") or "")
+        cand = by_idea.get(named) or by_idea.get(clean_name(named))
         if cand is None or cand["key"] in picked:
+            dropped.append(f"idea {named!r}: not an offered candidate")
             continue  # the AI may only suggest companies it was offered
         why = _text(idea.get("why_rise"))
         own = cand["article_ids"]
         why_ids = cites([i for i in idea.get("why_rise_cites") or [] if i in own],
                         f"idea:{cand['key']}:why")
         if not (why and _text(idea.get("risks")) and why_ids):
+            dropped.append(f"idea {named!r}: missing reasons or its own sources")
             continue
         picked.add(cand["key"])
         confidence = idea.get("confidence")
@@ -494,6 +483,9 @@ def _validate(
             },
             "confidence": confidence if confidence in ("low", "medium", "high") else "low",
         })
+    if not content["overview"]["text"]:
+        dropped.append("overview: no valid sources")
+    content["checks"] = {"dropped": dropped}
     return content, citations
 
 

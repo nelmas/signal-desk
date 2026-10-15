@@ -28,7 +28,10 @@ def render_text(briefing: Briefing) -> str:
 
     out.append("NEWS ABOUT YOUR HOLDINGS")
     for h in c.get("holdings", []):
-        out.append(_para(f"{h['name']}: {h['text']}", h["cites"], "  "))
+        who = f"{h['name']} ({h['share']})" if h.get("share") else h["name"]
+        out.append(_para(f"{who}: {h['text']}", h["cites"], "  "))
+    if c.get("holdings_also"):
+        out.append(_para("Also in the news: " + ", ".join(c["holdings_also"]) + ".", [], "  "))
     if not c.get("holdings"):
         out.append("  No news about your holdings.")
     out.append("")

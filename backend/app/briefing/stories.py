@@ -150,7 +150,8 @@ def build_stories(
                 id=article.id,
                 title=article.title,
                 url=article.url,
-                source=sources.get(article.source_id, "?"),
+                # Finnhub articles come from many outlets; show the real one.
+                source=(article.raw or {}).get("outlet") or sources.get(article.source_id, "?"),
                 published_at=article.published_at,
                 basis=analysis.basis,
                 importance=float(analysis.importance),
