@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/watchlist", label: "Signal watchlist" },
   { href: "/news", label: "News feed" },
   { href: "/record", label: "Track record" },
+  { href: "/settings", label: "Settings" },
 ] as const;
 
 export function Nav() {

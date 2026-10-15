@@ -195,6 +195,21 @@ Import the GitHub repo in Vercel, set Root Directory to `frontend`, and add the
 environment variables `DATABASE_URL` (the read-only role's connection string),
 `APP_PASSWORD` and `SESSION_SECRET`.
 
+### Settings and the daily email
+
+The Settings page edits, in the `settings` table: score weights, briefing send time,
+language (English or Swedish) and length, which sources and markets to follow, and the
+daily email (on/off and address). It also manages the watchlist and holdings
+(`tracked_stocks`). The web app's database role may write those two tables and nothing
+else (migration 0006). Sources or markets turned off are skipped by the collector and
+left out of the briefing's stories and ideas; holdings are always reported.
+
+`signal-desk send-briefing` (in the hourly job) emails today's briefing once, after the
+send time, via Resend's free plan (`RESEND_API_KEY`; without your own domain it can only
+send to your Resend account's address) or any SMTP mailbox (`EMAIL_PROVIDER=smtp`,
+`SMTP_*`). A failed send is retried on the next run. "Run workflow" has a "send a test
+email" option that doesn't count as the day's email.
+
 ## Signal score
 
 `signal-desk score` gives each company with recent news (plus the watchlist) a 0-100
@@ -257,6 +272,6 @@ free tier changes.
 3. AI tagging (companies checked against ticker list, event type, sentiment, summary) ✅
 4. Prices and the 0–100 signal score ✅ (US prices; Swedish prices pending a free source)
 5. Story clustering and briefing generation with citations ✅
-6. Web app: briefing, watchlist, news feed, stock detail (built; deploying)
-7. Settings and daily email
+6. Web app: briefing, watchlist, news feed, stock detail ✅
+7. Settings and daily email ✅ (email needs a Resend key)
 8. Track record
