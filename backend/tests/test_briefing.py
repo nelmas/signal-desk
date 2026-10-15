@@ -243,6 +243,7 @@ def test_inventions_and_unsourced_claims_are_dropped(db: Session, news) -> None:
         }
 
     c = run(db, FakeGemini(bad)).content
+    assert_every_source_is_cited(c)
     assert c["overview"]["text"] == ""
     assert [h["company"] for h in c["holdings"]] == ["nvidia"]  # from code, not the AI
     assert [s["headline"] for s in c["stories"]] == ["Apple"]
@@ -253,6 +254,37 @@ def test_inventions_and_unsourced_claims_are_dropped(db: Session, news) -> None:
     assert "idea 'made-up-co': not an offered candidate" in dropped
     assert "idea 'volvo': missing reasons or its own sources" in dropped
     assert "overview: no valid sources" in dropped
+
+
+def test_ids_in_prose_are_removed_and_one_company_sectors_dropped(db: Session, news) -> None:
+    def leaky(prompt: str) -> dict:
+        answer = good_answer(news)(prompt)
+        answer["overview"]["text"] = f"Volvo won an order [{news['volvo'][0]}] [12, 13]."
+        answer["sectors"].append({"name": "Tech", "direction": "mixed",
+                                  "reason": "Apple and Volvo.",
+                                  "cites": [news["apple"][0], news["volvo"][0]]})
+        return answer
+
+    c = run(db, FakeGemini(leaky)).content
+    assert c["overview"]["text"] == "Volvo won an order."
+    assert [s["name"] for s in c["sectors"]] == ["Tech"]  # "Industrials" cited Volvo only
+    assert "sector 'Industrials': news from only one company" in c["checks"]["dropped"]
+    assert_every_source_is_cited(c)
+
+
+def assert_every_source_is_cited(c: dict) -> None:
+    """Dropped parts must not leave numbered sources that nothing points to."""
+    used = set(c["overview"]["cites"])
+    for h in c["holdings"]:
+        used.update(h["cites"])
+    for st in c["stories"]:
+        for part in ("what_happened", "what_it_means", "what_next"):
+            used.update(st[part]["cites"])
+    for sec in c["sectors"]:
+        used.update(sec["cites"])
+    for idea in c["ideas"]:
+        used.update(idea["why_rise"]["cites"] + idea["risks"]["cites"])
+    assert used == {src["n"] for src in c["sources"]}
 
 
 def test_ideas_may_name_the_company_instead_of_its_key(db: Session, news) -> None:

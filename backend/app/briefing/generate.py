@@ -35,7 +35,7 @@ from app.topic import TopicConfig
 from app.universe import clean_name
 
 PURPOSE = "briefing"
-PROMPT_VERSION = "brief-v1"
+PROMPT_VERSION = "brief-v2"
 STORY_CANDIDATES_EXTRA = 3  # the AI may skip weak stories, so offer a few more
 MAX_HOLDING_LINES = 5  # more holdings in the news are listed by name only
 _FUND_SHARE = re.compile(r"(\d+(?:\.\d+)?)% of fund")
@@ -177,22 +177,29 @@ def system_prompt(topic: TopicConfig, opts: BriefingOptions) -> str:
 "{opts.language}".
 
 Use only facts from the articles you are given. Cite them by article id in the *cites
-fields: every sentence must be supported by the articles you cite. Never mention a
-company that is not in the input. Present ideas to research, never buy or sell advice.
-Be plain and specific; no hype, no exclamation marks.
+fields only, never inside the text: every sentence must be supported by the articles
+you cite. Never mention a company that is not in the input. Present ideas to research,
+never buy or sell advice. Be plain and specific; no hype, no exclamation marks, no
+filler that restates what was already said.
 
 Sections:
 - overview: what mattered most, at most 70 words.
 - stories: up to {opts.max_stories} of the STORIES, most important first. You may skip a
   story that is thin or routine. For each, at most 40 words per part:
   what_happened (facts), what_it_means (why it matters, grounded in the facts),
-  what_next (what it could lead to, framed as possibilities, never as predictions).
+  what_next (a concrete thing to watch that follows from the facts: a date, decision,
+  report or number, framed as a possibility, never a prediction). If there is nothing
+  concrete beyond restating what happened, leave what_next empty.
   Say "reportedly" for news whose basis is "reported".
-- sectors: up to {opts.max_sectors} sectors worth watching, judged from the stories,
-  each with direction up (more and better news), down (worse news) or mixed, and a
-  reason of at most 30 words.
+- sectors: up to {opts.max_sectors} sectors worth watching, judged from the stories. A
+  sector needs news from at least two different companies; cite both. Each has a
+  direction up (more and better news), down (worse news) or mixed, and a reason of at
+  most 30 words.
 - ideas: up to {opts.max_ideas} of the IDEA CANDIDATES whose news could plausibly help
   the share price, at most 40 words per part. why_rise and risks must both be concrete.
+  risks names a specific way the idea could fail (execution, dilution, valuation,
+  dependence on one customer or subsidy, a pending decision), reasoned from the cited
+  facts; "market weakness" alone is not a risk.
   confidence is low unless several trustworthy sources agree; high is rare. Mention
   the market reaction given for the candidate in plain words. Return [] if no candidate
   is convincing.
@@ -354,8 +361,12 @@ def _idea_candidates(
     return out
 
 
+# "[1988]" or "[12, 13]": article ids the model wrote into the prose by mistake.
+_INLINE_IDS = re.compile(r"\s*\[\d+(?:\s*,\s*\d+)*\]")
+
+
 def _text(value: object) -> str:
-    return str(value or "").strip()[:TEXT_LIMIT]
+    return _INLINE_IDS.sub("", str(value or "")).strip()[:TEXT_LIMIT]
 
 
 def _validate(
@@ -367,22 +378,27 @@ def _validate(
 ) -> tuple[dict, list[tuple[str, int]]]:
     """Keep only what the input supports. Returns content and (ref, article id) citations."""
     allowed = {a.id for s in stories for a in s.for_prompt()}
+    company_of = {a.id: s.company_key for s in stories for a in s.for_prompt()}
     citations: list[tuple[str, int]] = []
     dropped: list[str] = []
 
-    def cites(raw: object, ref: str, fallback: list[int] | None = None) -> list[int]:
-        ids = [i for i in dict.fromkeys(raw if isinstance(raw, list) else []) if i in allowed]
-        ids = ids or list(fallback or [])
+    def valid(raw: object, fallback: list[int] | None = None, within: set[int] | None = None):
+        """Cited ids the AI was actually given (optionally only `within`), else the fallback."""
+        ok = within if within is not None else allowed
+        ids = [i for i in dict.fromkeys(raw if isinstance(raw, list) else []) if i in ok]
+        return ids or list(fallback or [])
+
+    def record(ref: str, ids: list[int]) -> list[int]:
+        """Only kept parts reach the source list, so nothing dropped leaves a stray [n]."""
         citations.extend((ref, i) for i in ids)
         return ids
 
     content: dict[str, Any] = {"disclaimer": DISCLAIMER}
     ov = answer.get("overview") or {}
-    ov_cites = cites(ov.get("cites"), "overview")
-    content["overview"] = {
-        "text": _text(ov.get("text")) if ov_cites else "",
-        "cites": ov_cites,
-    }
+    ov_text, ov_ids = _text(ov.get("text")), valid(ov.get("cites"))
+    if not (ov_text and ov_ids):
+        ov_text, ov_ids = "", []
+    content["overview"] = {"text": ov_text, "cites": record("overview", ov_ids)}
 
     # Holdings: one line per holding in the news, from the tagged summary of its best
     # article. Written by code, so it can't be dropped or invented.
@@ -413,7 +429,7 @@ def _validate(
         if not _text(st.get("what_happened")):
             continue
         ref = f"story:{n}"
-        facts = cites(st.get("what_happened_cites"), f"{ref}:what")
+        facts = valid(st.get("what_happened_cites"))
         if not facts:
             dropped.append(f"story {n}: no valid sources for what happened")
             continue  # a story must rest on its sources
@@ -425,29 +441,31 @@ def _validate(
             "name": s.company_name,
             "event_type": s.event_type,
             "headline": _text(st.get("headline")) or s.lead.title,
-            "what_happened": {"text": _text(st.get("what_happened")), "cites": facts},
-            "what_it_means": {
-                "text": _text(st.get("what_it_means")),
-                "cites": cites(st.get("what_it_means_cites"), f"{ref}:means", facts),
-            },
-            "what_next": {
-                "text": _text(st.get("what_next")),
-                "cites": cites(st.get("what_next_cites"), f"{ref}:next", facts),
+            "what_happened": {
+                "text": _text(st.get("what_happened")),
+                "cites": record(f"{ref}:what", facts),
             },
         })
+        for part, key in (("what_it_means", "means"), ("what_next", "next")):
+            text = _text(st.get(part))  # may be empty: nothing concrete to add
+            ids = valid(st.get(f"{part}_cites"), facts) if text else []
+            content["stories"][-1][part] = {"text": text, "cites": record(f"{ref}:{key}", ids)}
 
     content["sectors"] = []
-    for i, sec in enumerate(answer.get("sectors") or []):
+    for sec in answer.get("sectors") or []:
         if len(content["sectors"]) >= opts.max_sectors or not isinstance(sec, dict):
             break
         name, reason = _text(sec.get("name"))[:60], _text(sec.get("reason"))
-        ids = cites(sec.get("cites"), f"sector:{i}")
+        ids = valid(sec.get("cites"))
         if not (name and reason and ids):
             dropped.append(f"sector {name!r}: missing reason or valid sources")
+        elif len({company_of[a] for a in ids}) < 2:
+            dropped.append(f"sector {name!r}: news from only one company")
         else:
             direction = sec.get("direction") if sec.get("direction") in ("up", "down") else "mixed"
+            ref = f"sector:{len(content['sectors'])}"
             content["sectors"].append(
-                {"name": name, "direction": direction, "reason": reason, "cites": ids}
+                {"name": name, "direction": direction, "reason": reason, "cites": record(ref, ids)}
             )
 
     by_idea = {c["key"]: c for c in ideas}
@@ -462,9 +480,7 @@ def _validate(
             dropped.append(f"idea {named!r}: not an offered candidate")
             continue  # the AI may only suggest companies it was offered
         why = _text(idea.get("why_rise"))
-        own = cand["article_ids"]
-        why_ids = cites([i for i in idea.get("why_rise_cites") or [] if i in own],
-                        f"idea:{cand['key']}:why")
+        why_ids = valid(idea.get("why_rise_cites"), within=cand["article_ids"])
         if not (why and _text(idea.get("risks")) and why_ids):
             dropped.append(f"idea {named!r}: missing reasons or its own sources")
             continue
@@ -475,11 +491,11 @@ def _validate(
             "name": cand["name"],
             "company_id": cand["company_id"],
             "market": cand["market"],
-            "why_rise": {"text": why, "cites": why_ids},
+            "why_rise": {"text": why, "cites": record(f"idea:{cand['key']}:why", why_ids)},
             "risks": {
                 "text": _text(idea.get("risks")),
-                "cites": cites([i for i in idea.get("risks_cites") or [] if i in allowed],
-                               f"idea:{cand['key']}:risks", why_ids),
+                "cites": record(f"idea:{cand['key']}:risks",
+                                valid(idea.get("risks_cites"), why_ids)),
             },
             "confidence": confidence if confidence in ("low", "medium", "high") else "low",
         })
