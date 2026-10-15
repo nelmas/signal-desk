@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.ai import LLMClient
+from app.ai import LLMClient, LLMRateLimited, LLMUnavailable
 from app.briefing.stories import StoryCandidate, build_stories
 from app.config import Settings
 from app.models import (
@@ -282,16 +282,25 @@ def generate_briefing(
     idea_pool = _idea_candidates(session, all_stories, story_pool, score_date)
 
     answer: dict[str, Any] = {}
+    model = None
     if all_stories:
-        answer = llm.generate_json(
-            model=settings.llm_briefing_model,
-            purpose=PURPOSE,
-            prompt_version=PROMPT_VERSION,
-            system=system_prompt(topic, opts),
-            user=user_prompt(story_pool, holding_stories, idea_pool, day),
-            schema=RESPONSE_SCHEMA,
-            temperature=0.3,
-        )
+        choices = (settings.llm_briefing_model, settings.llm_briefing_fallback_model)
+        models = [m for m in choices if m]
+        for model in models:
+            try:
+                answer = llm.generate_json(
+                    model=model,
+                    purpose=PURPOSE,
+                    prompt_version=PROMPT_VERSION,
+                    system=system_prompt(topic, opts),
+                    user=user_prompt(story_pool, holding_stories, idea_pool, day),
+                    schema=RESPONSE_SCHEMA,
+                    temperature=0.3,
+                )
+                break
+            except (LLMUnavailable, LLMRateLimited):
+                if model == models[-1]:
+                    raise  # nothing saved: the next hourly run tries again
         if not isinstance(answer, dict):
             answer = {}
 
@@ -307,7 +316,7 @@ def generate_briefing(
         language=opts.language,
         status="ready",
         overview=content["overview"]["text"],
-        model=settings.llm_briefing_model if all_stories else None,
+        model=model,
         prompt_version=PROMPT_VERSION,
     )
     session.add(briefing)

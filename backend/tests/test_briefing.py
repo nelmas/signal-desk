@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ai import LLMClient
+from app.ai import LLMClient, LLMUnavailable
 from app.briefing import generate_briefing, is_due, render_text
 from app.briefing.generate import window_start
 from app.briefing.stories import build_stories
@@ -154,7 +154,9 @@ def good_answer(ids: dict) -> Any:
 
 def run(db: Session, fake: FakeGemini, **kw) -> Briefing:
     with httpx.Client(transport=httpx.MockTransport(fake)) as client:
-        return generate_briefing(db, LLMClient(client, db, "k"), TOPIC, SETTINGS, now=NOW, **kw)
+        return generate_briefing(
+            db, LLMClient(client, db, "k", sleep=lambda s: None), TOPIC, SETTINGS, now=NOW, **kw
+        )
 
 
 # --- stories --------------------------------------------------------------------------
@@ -259,6 +261,25 @@ def test_window_covers_the_gap_since_the_last_briefing(db: Session) -> None:
                     created_at=NOW - dt.timedelta(hours=48)))
     db.commit()
     assert window_start(db, TOPIC, NOW) == NOW - dt.timedelta(hours=48)
+
+
+def test_busy_model_falls_back_to_the_second_model(db: Session, news) -> None:
+    good = FakeGemini(good_answer(news))
+    def busy_primary(request: httpx.Request) -> httpx.Response:
+        if SETTINGS.llm_briefing_model in str(request.url):
+            return httpx.Response(503, json={"error": {"message": "high demand"}})
+        return good(request)
+    briefing = run(db, busy_primary)
+    assert briefing.model == SETTINGS.llm_briefing_fallback_model
+    assert briefing.content["stories"]
+
+
+def test_both_models_busy_saves_nothing(db: Session, news) -> None:
+    def busy(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": {"message": "high demand"}})
+    with pytest.raises(LLMUnavailable):
+        run(db, busy)
+    assert db.scalar(select(func.count()).select_from(Briefing)) == 0
 
 
 def test_quiet_window_needs_no_ai_call(db: Session) -> None:

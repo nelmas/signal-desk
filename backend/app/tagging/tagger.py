@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ai import LLMClient, LLMError, LLMRateLimited
+from app.ai import LLMClient, LLMError, LLMRateLimited, LLMUnavailable
 from app.config import Settings
 from app.models import AICall, Article, ArticleAnalysis, ArticleCompany, Source
 from app.tagging.matcher import CompanyIndex
@@ -214,7 +214,8 @@ def tag_pending(
                 user=_user_prompt(batch, matches, index),
                 schema=RESPONSE_SCHEMA,
             )
-        except LLMRateLimited as e:
+        except (LLMRateLimited, LLMUnavailable) as e:
+            # Quota or Google's side, not the articles' fault: they stay queued untouched.
             report.stopped = str(e)
             break
         except LLMError as e:

@@ -36,7 +36,7 @@ Answer = Callable[[int, list[str]], dict[str, Any]]
 class FakeGemini:
     """Answers like the Gemini REST API. `answer(article_id, candidate_keys)` builds each result."""
 
-    def __init__(self, answer: Answer, status: int = 200) -> None:
+    def __init__(self, answer: Answer | None, status: int = 200) -> None:
         self.answer = answer
         self.status = status
         self.calls: list[dict[str, Any]] = []
@@ -46,6 +46,8 @@ class FakeGemini:
         self.calls.append({"url": str(request.url), "headers": request.headers, "body": body})
         if self.status != 200:
             return httpx.Response(self.status, json={"error": {"message": "nope"}})
+        if self.answer is None:  # a reply that isn't the JSON we asked for
+            return httpx.Response(200, json={"candidates": [{"finishReason": "SAFETY"}]})
         text = body["contents"][0]["parts"][0]["text"]
         results = []
         pattern = r"<article id=(\d+)>.*?Candidates: ([^\n]*)"
@@ -107,7 +109,7 @@ def add_article(
 
 def run(session: Session, fake: FakeGemini, settings: Settings = SETTINGS, **kw):
     with httpx.Client(transport=httpx.MockTransport(fake)) as client:
-        llm = LLMClient(client, session, "test-key")
+        llm = LLMClient(client, session, "test-key", sleep=lambda s: None)
         return tag_pending(session, llm, TOPIC, settings, sleep=lambda s: None, **kw)
 
 
@@ -270,12 +272,35 @@ def test_rate_limit_stops_run_and_leaves_articles_pending(db: Session) -> None:
     assert db.scalars(select(AICall)).one().ok is False
 
 
-def test_failed_answers_retry_then_give_up(db: Session) -> None:
+def test_unusable_answers_retry_then_give_up(db: Session) -> None:
     article = add_article(db, "Volvo receives order")
     for _ in range(3):
-        run(db, FakeGemini(tag_all, status=500))
+        run(db, FakeGemini(None))
     db.refresh(article)
     assert article.tag_status == "failed" and article.tag_attempts == 3
+
+
+def test_google_outage_retries_then_leaves_articles_queued(db: Session) -> None:
+    article = add_article(db, "Volvo receives order")
+    fake = FakeGemini(tag_all, status=503)
+    report = run(db, fake)
+    db.refresh(article)
+    assert len(fake.calls) == 3  # first try + 2 retries
+    assert "503" in (report.stopped or "")
+    assert article.tag_status == "pending" and article.tag_attempts == 0
+
+
+def test_outage_that_passes_is_retried_successfully(db: Session) -> None:
+    article = add_article(db, "Volvo receives order")
+    answers = iter([httpx.Response(503, json={}), None])
+    fake = FakeGemini(tag_all)
+    def flaky(request: httpx.Request) -> httpx.Response:
+        return next(answers) or fake(request)
+    with httpx.Client(transport=httpx.MockTransport(flaky)) as client:
+        tag_pending(db, LLMClient(client, db, "k", sleep=lambda s: None), TOPIC, SETTINGS)
+    db.refresh(article)
+    assert article.tag_status == "tagged"
+    assert [c.ok for c in db.scalars(select(AICall).order_by(AICall.id))] == [False, True]
 
 
 def test_daily_budget_is_respected(db: Session) -> None:

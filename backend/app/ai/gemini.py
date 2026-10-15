@@ -6,6 +6,7 @@ free-tier error codes (429 = over quota) easy to handle.
 
 import json
 import time
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -24,13 +25,39 @@ class LLMRateLimited(LLMError):
     """Free-tier quota reached (HTTP 429). Stop for this run; nothing is charged."""
 
 
+class LLMUnavailable(LLMError):
+    """Google's side is overloaded or down (HTTP 5xx). Usually passes within minutes."""
+
+
+# Waits before retrying a 5xx; most "high demand" spells pass within a minute.
+RETRY_WAITS = (10, 30)
+
+
 class LLMClient:
-    def __init__(self, client: httpx.Client, session: Session, api_key: str) -> None:
+    def __init__(
+        self,
+        client: httpx.Client,
+        session: Session,
+        api_key: str,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
         self.client = client
         self.session = session
         self.api_key = api_key
+        self.sleep = sleep
 
-    def generate_json(
+    def generate_json(self, **kwargs: Any) -> Any:
+        """One JSON answer, retrying temporary outages (each attempt is logged)."""
+        for wait in (*RETRY_WAITS, None):
+            try:
+                return self._generate_once(**kwargs)
+            except LLMUnavailable:
+                if wait is None:
+                    raise
+                self.sleep(wait)
+        raise AssertionError("unreachable")
+
+    def _generate_once(
         self,
         *,
         model: str,
@@ -64,6 +91,8 @@ class LLMClient:
                 raise LLMRateLimited("free-tier limit reached (HTTP 429)")
             if response.status_code == 404:
                 raise LLMError(f"model {model!r} not found; check the model name in AI Studio")
+            if response.status_code >= 500:
+                raise LLMUnavailable(f"HTTP {response.status_code}: {response.text[:300]}")
             if response.status_code >= 400:
                 raise LLMError(f"HTTP {response.status_code}: {response.text[:300]}")
             data = response.json()

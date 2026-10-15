@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     # daily quota. The briefing is one call a day and uses the better writer.
     llm_tag_model: str = "gemini-3.5-flash-lite"
     llm_briefing_model: str = "gemini-3.8-flash"
+    # Used when the briefing model is overloaded or out of quota (also free, 20/day).
+    llm_briefing_fallback_model: str | None = "gemini-3.5-flash"
     # Stay under the tag model's free limits (Flash-Lite: 15/min, 500/day), with headroom.
     llm_tag_requests_per_minute: int = 12
     llm_tag_requests_per_day: int = 400
