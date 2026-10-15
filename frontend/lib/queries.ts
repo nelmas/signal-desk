@@ -20,15 +20,16 @@ const TOPIC = "stocks";
 // ISO timestamps from SQL, so the browser's time zone can't shift them.
 const ISO = `'YYYY-MM-DD"T"HH24:MI:SS"Z"'`;
 
-export async function getBriefing(date?: string): Promise<Briefing | null> {
+/** The newest briefing (or the one for `date`), in `lang` when that day has one. */
+export async function getBriefing(date: string | undefined, lang: string): Promise<Briefing | null> {
   await requireSession();
   const rows = await db().query(
     `select id, date::text as date, model, content,
             to_char(created_at at time zone 'UTC', ${ISO}) as created_at
      from briefings
      where topic = $1 and ($2::date is null or date = $2::date)
-     order by date desc limit 1`,
-    [TOPIC, date ?? null],
+     order by date desc, (language = $3) desc, created_at desc limit 1`,
+    [TOPIC, date ?? null, lang],
   );
   return (rows[0] as Briefing | undefined) ?? null;
 }
@@ -36,7 +37,9 @@ export async function getBriefing(date?: string): Promise<Briefing | null> {
 export async function getBriefingDates(limit = 30): Promise<string[]> {
   await requireSession();
   const rows = await db().query(
-    `select date::text as date from briefings where topic = $1 order by date desc limit $2`,
+    // One entry per day, also when a day has briefings in two languages.
+    `select distinct date::text as date from briefings where topic = $1
+     order by date desc limit $2`,
     [TOPIC, limit],
   );
   return rows.map((r) => r.date as string);

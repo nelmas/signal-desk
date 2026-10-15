@@ -11,11 +11,8 @@ export default async function BriefingPage({
 }) {
   const { date } = await searchParams;
   const valid = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
-  const [briefing, dates, { lang, t }] = await Promise.all([
-    getBriefing(valid),
-    getBriefingDates(10),
-    getDict(),
-  ]);
+  const { lang, t } = await getDict();
+  const [briefing, dates] = await Promise.all([getBriefing(valid, lang), getBriefingDates(10)]);
   const b = t.briefing;
 
   if (!briefing?.content) {
