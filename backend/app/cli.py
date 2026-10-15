@@ -244,6 +244,20 @@ def send_briefing(
 
 
 @app.command()
+def evaluate_ideas() -> None:
+    """Score published ideas after 1, 5 and 20 trading days against their index."""
+    from app.db import get_sessionmaker
+    from app.track import evaluate_ideas as run
+
+    with get_sessionmaker()() as session:
+        r = run(session, get_topic())
+    typer.echo(
+        f"{r.ideas} ideas: {r.entered} newly entered, {r.scored} results added, "
+        f"{r.no_prices} without prices yet"
+    )
+
+
+@app.command()
 def prune(days: int | None = None) -> None:
     """Delete old articles that no tracked company was tagged in."""
     from app.collect import prune_untagged

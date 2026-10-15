@@ -210,6 +210,24 @@ send to your Resend account's address) or any SMTP mailbox (`EMAIL_PROVIDER=smtp
 `SMTP_*`). A failed send is retried on the next run. "Run workflow" has a "send a test
 email" option that doesn't count as the day's email.
 
+## Track record
+
+`signal-desk evaluate-ideas` (hourly, after prices) scores every published idea:
+
+- **Entry** is the first market open after the briefing was published (`app/track.py`),
+  so the record never counts a move you couldn't have acted on. A briefing at 08:30 in
+  Stockholm is before New York opens, so a US idea enters that day.
+- **Results** after 1, 5 and 20 trading days (the entry day is day 1): entry open to that
+  day's close, and the market's benchmark over the same days (`benchmark_symbol` in
+  `topic.yaml`; SPY for the S&P 500). Excess return = idea minus benchmark.
+- Prices keep being fetched for every idea until its 20-day result is in, even if it is
+  no longer watched or top-scoring. Swedish ideas stay unscored until a free Swedish price
+  source exists.
+
+The Track record page shows the hit rate against the index and the average excess return,
+by holding period and by confidence, and says plainly when there are too few results to
+judge. A company suggested twice on one day counts once.
+
 ## Signal score
 
 `signal-desk score` gives each company with recent news (plus the watchlist) a 0-100
@@ -273,5 +291,5 @@ free tier changes.
 4. Prices and the 0–100 signal score ✅ (US prices; Swedish prices pending a free source)
 5. Story clustering and briefing generation with citations ✅
 6. Web app: briefing, watchlist, news feed, stock detail ✅
-7. Settings and daily email ✅ (email needs a Resend key)
-8. Track record
+7. Settings and daily email ✅
+8. Track record ✅ (US ideas; Swedish ideas need a free price source)

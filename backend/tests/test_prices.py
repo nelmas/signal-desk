@@ -8,7 +8,16 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.models import Company, Listing, PriceDaily, SignalScore, TrackedStock
+from app.models import (
+    BenchmarkPrice,
+    Briefing,
+    Company,
+    Idea,
+    Listing,
+    PriceDaily,
+    SignalScore,
+    TrackedStock,
+)
 from app.prices import last_completed_session, update_prices
 from app.sync import sync_topic
 from app.topic import load_companies, load_topic_from
@@ -81,17 +90,18 @@ def test_fetches_watchlist_and_top_scorers_then_skips_when_up_to_date(db: Sessio
     report = run(db, fake)
 
     symbols = {r.url.params["symbol"] for r in fake.requests}
-    assert symbols == {"AAPL", "NVDA", "TSLA"}  # watchlist + top 2 scorers, US only
-    assert report.requests == 3 and not report.failed
+    assert symbols == {"SPY", "AAPL", "NVDA", "TSLA"}  # index + watchlist + top 2, US only
+    assert report.requests == 4 and not report.failed
     assert all(r.headers["Authorization"] == "apikey td-key" for r in fake.requests)
     assert all("apikey" not in r.url.params for r in fake.requests)
     apple = db.scalars(select(Listing).where(Listing.symbol == "AAPL")).one()
     latest = db.scalar(select(func.max(PriceDaily.date)).where(PriceDaily.listing_id == apple.id))
     assert latest == dt.date(2026, 10, 13)  # today's unfinished bar is not stored
 
+    assert db.scalar(select(func.max(BenchmarkPrice.date))) == dt.date(2026, 10, 13)
     again = FakeTwelveData()
     report = run(db, again)
-    assert again.requests == [] and report.up_to_date == 3
+    assert again.requests == [] and report.up_to_date == 4
 
 
 def test_free_tier_limit_stops_the_run(db: Session) -> None:
@@ -105,7 +115,7 @@ def test_unknown_symbol_is_reported_and_others_continue(db: Session) -> None:
     watch(db, "apple")
     report = run(db, FakeTwelveData(error={"code": 404, "message": "symbol not found",
                                            "status": "error"}))
-    assert report.failed == {"AAPL": "symbol not found"}
+    assert report.failed == {"SPY": "symbol not found", "AAPL": "symbol not found"}
 
 
 def test_without_key_nothing_is_fetched(db: Session) -> None:
@@ -113,3 +123,18 @@ def test_without_key_nothing_is_fetched(db: Session) -> None:
     fake = FakeTwelveData()
     report = run(db, fake, Settings(twelve_data_api_key=None))
     assert fake.requests == [] and "TWELVE_DATA_API_KEY" in (report.stopped or "")
+
+
+def test_ideas_keep_getting_prices_until_scored(db: Session) -> None:
+    """Microsoft isn't watched or top-scoring, but an open idea still needs its prices."""
+    msft = db.scalars(select(Listing).where(Listing.symbol == "MSFT")).one()
+    briefing = Briefing(topic="stocks", date=dt.date(2026, 10, 1), language="en")
+    db.add(briefing)
+    db.flush()
+    db.add(Idea(briefing_id=briefing.id, company_id=msft.company_id, listing_id=msft.id,
+                thesis="t", risks="r", confidence="low", benchmark="S&P 500",
+                published_at=dt.datetime(2026, 10, 1, 6, 30, tzinfo=dt.UTC)))
+    db.commit()
+    fake = FakeTwelveData()
+    run(db, fake)
+    assert {r.url.params["symbol"] for r in fake.requests} == {"SPY", "MSFT"}

@@ -252,3 +252,11 @@ legend { margin-bottom: 8px; }
 .search label { font-weight: 600; }
 .search input { flex: 1 1 16rem; }
 form.inline { display: flex; gap: 10px; align-items: center; }
+
+/* track record */
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 760px) { .tiles { grid-template-columns: minmax(0, 1fr); } }
+.tile { display: grid; gap: 4px; align-content: start; }
+.tile .v { font-family: var(--f-display), sans-serif; font-weight: 700; font-stretch: 80%;
+  font-size: 2rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile .d { font-size: .8rem; color: var(--ink-3); }

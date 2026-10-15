@@ -5,11 +5,11 @@ import "server-only";
 import { db } from "@/lib/db";
 import { parseCursor } from "@/lib/paging";
 import { requireSession } from "@/lib/session";
+import type { RecordIdea } from "@/lib/record";
 import type {
   Briefing,
   Company,
   CoveragePoint,
-  IdeaRow,
   NewsItem,
   PricePoint,
   ScoreComponents,
@@ -162,17 +162,28 @@ export async function getStockDetail(companyId: number) {
   };
 }
 
-export async function getIdeas(limit = 100): Promise<IdeaRow[]> {
+export async function getTrackRecord(limit = 300): Promise<RecordIdea[]> {
   await requireSession();
   const rows = await db().query(
-    `select i.id, c.key, c.name, i.confidence, i.thesis, i.risks, i.benchmark,
-            to_char(i.published_at at time zone 'UTC', ${ISO}) as published_at,
-            b.date::text as briefing_date
-     from ideas i
+    // A company suggested twice on one day (e.g. the briefing rewritten in another
+    // language) counts once: the first suggestion, so nothing is double counted.
+    `with first as (
+       select distinct on (i.company_id, b.date) i.*, b.date as briefing_date
+       from ideas i join briefings b on b.id = i.briefing_id
+       order by i.company_id, b.date, i.published_at, i.id
+     )
+     select i.id, c.key, c.name, i.confidence, i.thesis, i.benchmark,
+            i.briefing_date::text as briefing_date, i.entry_date::text as entry_date,
+            coalesce((select json_object_agg(o.horizon_days, json_build_object(
+                        'ret', o.return_pct::float8,
+                        'bench', o.benchmark_return_pct::float8,
+                        'excess', o.excess_return_pct::float8))
+                      from idea_outcomes o where o.idea_id = i.id), '{}'::json) as outcomes
+     from first i
      join companies c on c.id = i.company_id
-     join briefings b on b.id = i.briefing_id
-     order by i.published_at desc limit $1`,
+     order by i.published_at desc, i.id desc
+     limit $1`,
     [limit],
   );
-  return rows as IdeaRow[];
+  return rows as RecordIdea[];
 }

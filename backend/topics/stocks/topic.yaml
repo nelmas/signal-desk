@@ -18,6 +18,7 @@ markets:
     mics: [XNAS, XNYS]
     timezone: America/New_York
     benchmark: S&P 500
+    benchmark_symbol: SPY  # ETF tracking the S&P 500, on Twelve Data's free plan
 
 # Every listed company the app can recognise in the news (refreshed by sync-universe).
 # Your watchlist is separate: it decides what you always see, not what is understood.

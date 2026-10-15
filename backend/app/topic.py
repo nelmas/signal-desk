@@ -63,6 +63,9 @@ class Market(BaseModel):
     mics: list[str]
     timezone: str
     benchmark: str  # name of the index ideas are compared against
+    # Tradable stand-in for that index on the price source (e.g. SPY for the S&P 500).
+    # None: no free price source yet, so the market's ideas can't be scored.
+    benchmark_symbol: str | None = None
 
 
 class BriefingConfig(BaseModel):

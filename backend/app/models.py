@@ -231,6 +231,18 @@ class PriceDaily(Base):
     source: Mapped[str] = mapped_column(String(50))
 
 
+class BenchmarkPrice(Base):
+    """Daily prices of the index each market's ideas are compared with (e.g. SPY)."""
+
+    __tablename__ = "benchmark_prices"
+
+    symbol: Mapped[str] = mapped_column(String(30), primary_key=True)
+    date: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    open: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
+    close: Mapped[Decimal] = mapped_column(Numeric(18, 6))
+    source: Mapped[str] = mapped_column(String(50))
+
+
 class SignalScore(Base):
     __tablename__ = "signal_scores"
     __table_args__ = (CheckConstraint("score BETWEEN 0 AND 100", name="score_range"),)

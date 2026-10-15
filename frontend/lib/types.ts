@@ -110,15 +110,3 @@ export type Company = {
 
 export type PricePoint = { date: string; close: number; volume: number | null };
 export type CoveragePoint = { day: string; articles: number };
-
-export type IdeaRow = {
-  id: number;
-  key: string;
-  name: string;
-  confidence: string;
-  thesis: string;
-  risks: string;
-  benchmark: string;
-  published_at: string;
-  briefing_date: string;
-};
