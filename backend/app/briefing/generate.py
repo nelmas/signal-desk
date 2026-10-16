@@ -274,8 +274,12 @@ def generate_briefing(
     answer: dict[str, Any] = {}
     model = None
     if all_stories:
-        choices = (settings.llm_briefing_model, settings.llm_briefing_fallback_model)
-        models = [m for m in choices if m]
+        choices = (
+            settings.llm_briefing_model,
+            settings.llm_briefing_fallback_model,
+            settings.llm_briefing_last_resort_model,
+        )
+        models = list(dict.fromkeys(m for m in choices if m))
         for model in models:
             try:
                 answer = llm.generate_json(

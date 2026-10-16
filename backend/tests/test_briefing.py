@@ -16,6 +16,7 @@ from app.briefing.generate import window_start
 from app.briefing.stories import build_stories
 from app.config import Settings
 from app.models import (
+    AICall,
     Article,
     ArticleAnalysis,
     ArticleCompany,
@@ -324,7 +325,26 @@ def test_busy_model_falls_back_to_the_second_model(db: Session, news) -> None:
     assert briefing.content["stories"]
 
 
-def test_both_models_busy_saves_nothing(db: Session, news) -> None:
+def busy_except(allowed: str, news) -> object:
+    """Every model answers 503 except `allowed` (exact name: 3.5-flash vs 3.5-flash-lite)."""
+    good = FakeGemini(good_answer(news))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if f"/models/{allowed}:generateContent" in str(request.url):
+            return good(request)
+        return httpx.Response(503, json={"error": {"message": "high demand"}})
+    return handler
+
+
+def test_last_resort_model_writes_when_both_are_busy(db: Session, news) -> None:
+    briefing = run(db, busy_except(SETTINGS.llm_briefing_last_resort_model, news))
+    assert briefing.model == "gemini-3.5-flash-lite"
+    assert briefing.content["stories"]
+    tried = [c.model for c in db.scalars(select(AICall).order_by(AICall.id))]
+    assert tried == ["gemini-3.8-flash"] * 3 + ["gemini-3.5-flash"] * 3 + ["gemini-3.5-flash-lite"]
+
+
+def test_all_models_busy_saves_nothing(db: Session, news) -> None:
     def busy(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": {"message": "high demand"}})
     with pytest.raises(LLMUnavailable):
