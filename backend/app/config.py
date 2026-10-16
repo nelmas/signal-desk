@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     price_requests_per_minute: int = 7
     price_requests_per_run: int = 40
     price_top_scorers: int = 15
+    # Swedish prices: EODHD's free plan (20 requests/day, end-of-day, Stockholm incl.
+    # First North). Personal, private use only; never shown outside this app.
+    eodhd_api_key: str | None = None
+    price_top_scorers_se: int = 5
 
     # Daily email (phase 7). Recipient and on/off live in Settings; EMAIL_TO is a fallback.
     email_provider: str = "resend"  # or "smtp"

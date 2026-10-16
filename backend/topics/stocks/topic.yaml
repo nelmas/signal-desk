@@ -13,6 +13,7 @@ markets:
     mics: [XSTO, FNSE, XSAT, XNGM]
     timezone: Europe/Stockholm
     benchmark: OMXS30
+    benchmark_symbol: XACT-OMXS30  # ETF tracking OMXS30, on EODHD's free plan
   - key: US
     name: US exchanges
     mics: [XNAS, XNYS]

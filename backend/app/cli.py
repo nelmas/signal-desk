@@ -176,21 +176,23 @@ def score(top: int = 10) -> None:
 
 @app.command()
 def prices() -> None:
-    """Fetch daily prices for the watchlist and today's top scorers (US, Twelve Data)."""
+    """Fetch daily prices: US from Twelve Data, Swedish from EODHD."""
     from app.collect.fetchers import make_client
     from app.db import get_sessionmaker
     from app.prices import update_prices
+    from app.prices_se import update_swedish_prices
 
     with get_sessionmaker()() as session, make_client() as client:
-        r = update_prices(session, client, get_topic(), get_settings())
-    typer.echo(
-        f"{r.listings} listings: {r.up_to_date} up to date, {r.fetched} fetched "
-        f"({r.rows} price rows), {r.requests} requests"
-    )
-    for symbol, error in r.failed.items():
-        typer.echo(f"  failed {symbol}: {error}")
-    if r.stopped:
-        typer.echo(f"stopped: {r.stopped}")
+        for market, update in (("US", update_prices), ("SE", update_swedish_prices)):
+            r = update(session, client, get_topic(), get_settings())
+            typer.echo(
+                f"{market}: {r.listings} listings: {r.up_to_date} up to date, {r.fetched} fetched "
+                f"({r.rows} price rows), {r.requests} requests"
+            )
+            for symbol, error in r.failed.items():
+                typer.echo(f"  failed {symbol}: {error}")
+            if r.stopped:
+                typer.echo(f"  stopped: {r.stopped}")
 
 
 @app.command()
@@ -290,6 +292,7 @@ def show_config() -> None:
     typer.echo(f"finnhub key: {'set' if s.finnhub_api_key else 'missing'}")
     typer.echo(f"sec user agent: {s.sec_user_agent or 'missing'}")
     typer.echo(f"twelve data key: {'set' if s.twelve_data_api_key else 'missing'}")
+    typer.echo(f"eodhd key: {'set' if s.eodhd_api_key else 'missing'}")
 
 
 if __name__ == "__main__":

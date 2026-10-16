@@ -144,7 +144,14 @@ under the free 8 per minute, capped per run, and a 429 ends the run.
 
 Terms: Twelve Data's data is for the customer's own internal, non-commercial use and
 display, with no redistribution. Prices are therefore only ever shown inside this
-private app. Swedish prices are not on the free plan and are not fetched yet.
+private app.
+
+Swedish prices come from EODHD's free plan (`app/prices_se.py`, `EODHD_API_KEY`, 20
+requests a day). One request returns every day missing since the last fetch, so a stock
+left out today catches up tomorrow. Priority: the OMXS30 tracker (XACT-OMXS30, Facit's
+comparison), Swedish ideas still being followed, the Swedish watchlist, then the top
+Swedish scorers. EODHD is asked how many requests are left before fetching, and one is
+kept in reserve. Same terms condition: personal, private use, never shown outside the app.
 
 ## Morning briefing
 
@@ -221,8 +228,7 @@ email" option that doesn't count as the day's email.
   day's close, and the market's benchmark over the same days (`benchmark_symbol` in
   `topic.yaml`; SPY for the S&P 500). Excess return = idea minus benchmark.
 - Prices keep being fetched for every idea until its 20-day result is in, even if it is
-  no longer watched or top-scoring. Swedish ideas stay unscored until a free Swedish price
-  source exists.
+  no longer watched or top-scoring. Swedish ideas are compared with the XACT OMXS30 ETF.
 
 The Track record page shows the hit rate against the index and the average excess return,
 by holding period and by confidence, and says plainly when there are too few results to
@@ -292,4 +298,4 @@ free tier changes.
 5. Story clustering and briefing generation with citations ✅
 6. Web app: briefing, watchlist, news feed, stock detail ✅
 7. Settings and daily email ✅
-8. Track record ✅ (US ideas; Swedish ideas need a free price source)
+8. Track record ✅

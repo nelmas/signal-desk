@@ -1,7 +1,7 @@
 # Hourly news collection, tagging, scoring and the daily briefing.
 # Free: public repos get unlimited Actions minutes.
 # Needs repo secrets: DATABASE_URL, SEC_USER_AGENT, FINNHUB_API_KEY, GEMINI_API_KEY,
-# TWELVE_DATA_API_KEY, RESEND_API_KEY (or SMTP_*). Optional variable: APP_URL.
+# TWELVE_DATA_API_KEY, EODHD_API_KEY, RESEND_API_KEY (or SMTP_*). Optional variable: APP_URL.
 name: Collect news
 
 on:
@@ -41,6 +41,7 @@ jobs:
       FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+      EODHD_API_KEY: ${{ secrets.EODHD_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       EMAIL_PROVIDER: ${{ vars.EMAIL_PROVIDER || 'resend' }}
       EMAIL_FROM: ${{ vars.EMAIL_FROM }}

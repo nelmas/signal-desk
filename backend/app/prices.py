@@ -72,20 +72,9 @@ def last_completed_session(now: dt.datetime) -> dt.date:
     return day
 
 
-def _targets(
-    session: Session, topic: TopicConfig, top: int, now: dt.datetime
-) -> list[Listing]:
-    us_mics = {mic for m in topic.markets if m.key == "US" for mic in m.mics}
-    watched = select(TrackedStock.company_id)
-    today = session.scalar(select(func.max(SignalScore.date)))
-    top_ids = (
-        select(SignalScore.company_id)
-        .where(SignalScore.date == today, SignalScore.score > 0)
-        .order_by(SignalScore.score.desc())
-        .limit(top)
-    )
-    # Ideas the track record hasn't finished scoring keep getting prices.
-    open_ideas = (
+def open_idea_listings(now: dt.datetime):
+    """Listings of ideas the track record hasn't finished scoring: they keep getting prices."""
+    return (
         select(Idea.listing_id)
         .where(Idea.published_at >= now - dt.timedelta(days=IDEA_FOLLOW_DAYS))
         .where(
@@ -96,6 +85,27 @@ def _targets(
             < len(HORIZONS)
         )
     )
+
+
+def top_scorers(session: Session, limit: int, mics: set[str]):
+    """Today's highest-scoring companies listed in one market (`mics`)."""
+    today = session.scalar(select(func.max(SignalScore.date)))
+    return (
+        select(SignalScore.company_id)
+        .join(Listing, (Listing.company_id == SignalScore.company_id) & Listing.is_primary)
+        .where(SignalScore.date == today, SignalScore.score > 0, Listing.mic.in_(mics))
+        .order_by(SignalScore.score.desc())
+        .limit(limit)
+    )
+
+
+def _targets(
+    session: Session, topic: TopicConfig, top: int, now: dt.datetime
+) -> list[Listing]:
+    us_mics = {mic for m in topic.markets if m.key == "US" for mic in m.mics}
+    watched = select(TrackedStock.company_id)
+    top_ids = top_scorers(session, top, us_mics)
+    open_ideas = open_idea_listings(now)
     return list(
         session.scalars(
             select(Listing)
@@ -171,14 +181,14 @@ def update_prices(
     )
     # (label, api symbol, last stored date, function that stores the rows)
     jobs: list[tuple[str, str, dt.date | None, Callable[[list[dict]], int]]] = [
-        (b, b, bench_latest.get(b), lambda v, b=b: _store_benchmark(session, b, v, target_day))
+        (b, b, bench_latest.get(b), lambda v, b=b: store_benchmark(session, b, v, target_day))
         for b in benchmarks
     ] + [
         (
             lst.symbol,
             lst.symbol.replace(" ", "."),  # "BRK B" -> "BRK.B"
             latest.get(lst.id),
-            lambda v, lst=lst: _store_listing(session, lst.id, v, target_day),
+            lambda v, lst=lst: store_listing(session, lst.id, v, target_day),
         )
         for lst in listings
     ]
@@ -229,7 +239,7 @@ def _parse(values: list[dict], target_day: dt.date) -> list[dict]:
     return rows
 
 
-def _store_listing(
+def store_listing(
     session: Session, listing_id: int, values: list[dict], target_day: dt.date
 ) -> int:
     rows = [{**r, "listing_id": listing_id, "source": SOURCE} for r in _parse(values, target_day)]
@@ -244,7 +254,7 @@ def _store_listing(
     return len(rows)
 
 
-def _store_benchmark(
+def store_benchmark(
     session: Session, symbol: str, values: list[dict], target_day: dt.date
 ) -> int:
     rows = [
