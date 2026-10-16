@@ -151,6 +151,7 @@ const en = {
     investment: "Investment / partnership", sales_update: "Sales figures", operations: "Operations",
     management_change: "Management change", legal: "Legal", divestment: "Divestment",
     insider_trade: "Insider trade", buyback: "Buyback", dividend: "Dividend",
+    ownership_stake: "Major shareholder stake",
     product: "Product launch", analyst_rating: "Analyst rating", other: "Other",
   } as Record<string, string>,
   record: {
@@ -395,6 +396,7 @@ const sv: Dict = {
     investment: "Investering/partnerskap", sales_update: "Försäljningssiffror", operations: "Produktion/drift",
     management_change: "Ledningsförändring", legal: "Rättsligt", divestment: "Avyttring",
     insider_trade: "Insynshandel", buyback: "Återköp", dividend: "Utdelning",
+    ownership_stake: "Stor ägarpost",
     product: "Produktlansering", analyst_rating: "Analytikerbetyg", other: "Övrigt",
   },
   record: {

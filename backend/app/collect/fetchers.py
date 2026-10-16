@@ -2,6 +2,7 @@
 
 import datetime as dt
 import logging
+from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 import httpx
@@ -17,6 +18,17 @@ USER_AGENT = "SignalDesk/0.1 (personal news reader)"
 
 class SourceSkipped(Exception):
     """The source can't run with the current config (e.g. missing free API key). Not an error."""
+
+
+@dataclass
+class FetchContext:
+    """What a fetcher may need to know about the database, gathered by the collector."""
+
+    symbols: list[str] = field(default_factory=list)  # per-stock news (Finnhub)
+    company_by_cik: dict[str, int] = field(default_factory=dict)  # SEC filings
+    company_by_name: dict[str, int] = field(default_factory=dict)  # normalized alias -> id
+    known_urls: set[str] = field(default_factory=set)  # url hashes already stored
+    language: str = "en"  # for summaries written by rules
 
 
 def make_client() -> httpx.Client:
@@ -39,7 +51,7 @@ def fetch_source(
     source: Source,
     settings: Settings,
     *,
-    symbols: list[str],
+    ctx: FetchContext,
     now: dt.datetime,
 ) -> list[FetchedItem]:
     if not source.url:
@@ -51,7 +63,15 @@ def fetch_source(
             parse = parse_rss if source.fetcher == "rss" else parse_atom
             return parse(response.content, now=now)
         case "finnhub_company_news":
-            return _fetch_finnhub(client, source.url, settings, symbols=symbols, now=now)
+            return _fetch_finnhub(client, source.url, settings, symbols=ctx.symbols, now=now)
+        case "sec_insiders":
+            from app.collect.insiders_us import fetch_sec_insiders
+
+            return fetch_sec_insiders(client, _headers("https://www.sec.gov/", settings), ctx, now)
+        case "fi_insider":
+            from app.collect.insiders_se import fetch_fi_insider
+
+            return fetch_fi_insider(client, source.url, ctx, now)
         case other:
             raise SourceSkipped(f"unknown fetcher {other!r}")
 

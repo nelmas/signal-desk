@@ -1,0 +1,16 @@
+Description:           Daily Index of EDGAR Dissemination Feed by Form Type
+Last Data Received:    October 15, 2026
+
+Form Type   Company Name                                                  CIK         Date Filed  File Name
+---------------------------------------------------------------------------------------------------------------------------------------------
+4                Apple Inc.                                                    320193      20261015    edgar/data/320193/0001214156-26-000001.txt
+4                Doe Jane                                                      1214156     20261015    edgar/data/1214156/0001214156-26-000001.txt
+4                NVIDIA CORP                                                   1045810     20261015    edgar/data/1045810/0001999999-26-000002.txt
+4                Big Seller                                                    1999999     20261015    edgar/data/1999999/0001999999-26-000002.txt
+4                MICROSOFT CORP                                                789019      20261015    edgar/data/789019/0001888888-26-000003.txt
+4                UNKNOWN SMALL CO                                              9999991     20261015    edgar/data/9999991/0001777777-26-000004.txt
+424B2            ROYAL BANK OF CANADA                                          1000275     20261015    edgar/data/1000275/0000950103-26-015713.txt
+SCHEDULE 13D     Activist Capital LP                                           2000001     20261015    edgar/data/2000001/0001666666-26-000005.txt
+SCHEDULE 13D     Tesla Inc.                                                    1318605     20261015    edgar/data/1318605/0001666666-26-000005.txt
+SCHEDULE 13G/A   Passive Fund                                                  2000002     20261015    edgar/data/2000002/0001555555-26-000006.txt
+SCHEDULE 13G/A   Apple Inc.                                                    320193      20261015    edgar/data/320193/0001555555-26-000006.txt

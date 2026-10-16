@@ -23,7 +23,7 @@ class SourceConfig(BaseModel):
     name: str
     kind: Literal["rss", "api", "press_wire"]
     # How to read it: a generic RSS/Atom parser, or a named API client.
-    fetcher: Literal["rss", "atom", "finnhub_company_news"] = "rss"
+    fetcher: Literal["rss", "atom", "finnhub_company_news", "sec_insiders", "fi_insider"] = "rss"
     url: str | None = None
     market: str | None = None
     language: str

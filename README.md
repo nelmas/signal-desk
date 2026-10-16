@@ -217,6 +217,25 @@ send to your Resend account's address) or any SMTP mailbox (`EMAIL_PROVIDER=smtp
 `SMTP_*`). A failed send is retried on the next run. "Run workflow" has a "send a test
 email" option that doesn't count as the day's email.
 
+## Insider trades and ownership stakes
+
+Two structured sources, read by rules instead of the AI (`app/collect/insiders_us.py`,
+`insiders_se.py`), arrive already tagged as `insider_trade` or `ownership_stake`:
+
+- **US (`sec-insiders`):** SEC's daily filing index for the last two business days, so
+  nothing is missed when a run is skipped. For companies the app knows, each Form 4 is
+  read: open-market purchases of $10,000+ and sales of $1M+ that weren't pre-planned
+  (Rule 10b5-1) become news; grants, option exercises and tax withholding are stored as
+  `irrelevant` so they're never read again. New 13D, 13D amendments and new 13G become
+  ownership-stake news; 13G amendments are skipped.
+- **Sweden (`fi-insider`):** Finansinspektionen's public insider register (CSV export,
+  last 3 days). Share purchases of 100,000 SEK+ and disposals of 10 MSEK+ by insiders of
+  known companies; allocations, share-programme transactions and outdated reports are
+  skipped. Lines from one notification become one item.
+
+Purchases are positive, more so when senior people (CEO, CFO, chair) buy big; sales are
+mildly negative. Only name and role of the insider are kept, inside the private app.
+
 ## Track record
 
 `signal-desk evaluate-ideas` (hourly, after prices) scores every published idea:

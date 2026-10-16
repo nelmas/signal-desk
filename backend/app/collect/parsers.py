@@ -27,6 +27,11 @@ class FetchedItem:
     summary: str | None = None
     language: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)  # small source metadata only
+    # Structured sources (insider trades) arrive already tagged by rules, not the AI:
+    # {"company_id", "event_type", "basis", "sentiment", "importance", "summary", "matched"}.
+    tag: dict[str, Any] | None = None
+    # "irrelevant": stored only so it isn't fetched again (e.g. a routine Form 4).
+    status: str | None = None
 
 
 def html_to_text(markup: str | None) -> str:

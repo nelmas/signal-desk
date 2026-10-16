@@ -44,6 +44,8 @@ class FakeFeeds:
             "www.sec.gov": "sec.xml",
             "finnhub.io": "finnhub_company_news.json",
         }
+        if host not in files:  # sources these tests leave out (the insider registers)
+            return httpx.Response(404)
         return httpx.Response(200, content=_fixture(files[host]))
 
 
@@ -180,4 +182,5 @@ def test_sources_and_markets_turned_off_in_settings_are_skipped(synced: Session)
     assert results["sec-8k"].skipped == "market US turned off in Settings"
     assert results["finnhub-news"].skipped == "market US turned off in Settings"
     assert results["cision-se"].new == 1
-    assert {r.url.host for r in feeds.requests} == {"news.cision.com"}
+    # Swedish sources still run: Cision and FI's insider register.
+    assert {r.url.host for r in feeds.requests} == {"news.cision.com", "marknadssok.fi.se"}

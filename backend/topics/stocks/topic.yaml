@@ -91,6 +91,34 @@ sources:
       redistribution (finnhub.io/terms-of-service). One call per tracked US stock
       per run. Articles belong to their outlets; we keep headline + summary + link.
 
+  - key: sec-insiders
+    name: SEC insider trades and 5% stakes (Form 4, 13D/13G)
+    kind: api
+    fetcher: sec_insiders
+    url: https://www.sec.gov/Archives/edgar/daily-index/
+    market: US
+    language: en
+    is_press_release: true
+    enabled: true
+    terms_basis: >-
+      US government data, free to access and reuse; same fair-access rules as sec-8k
+      (declared User-Agent, max 10 requests/s). Daily filing index plus each relevant
+      Form 4 document; only companies the app knows; filings are read by rules, no AI.
+  - key: fi-insider
+    name: Finansinspektionen insynsregister
+    kind: api
+    fetcher: fi_insider
+    url: https://marknadssok.fi.se/Publiceringsklient/sv-SE/Search/Search
+    market: SE
+    language: sv
+    is_press_release: true
+    enabled: true
+    terms_basis: >-
+      Public register by law (SFS 2016:1306, art. 19 MAR); FI offers this CSV export on its
+      public search page and publishes no restriction on automated use (checked
+      2026-10-16). One small export per run (last 3 days). Names of insiders are kept
+      only with their role, for private use inside this app.
+
 event_types:
   - {key: profit_warning, label: Profit warning, importance: 1.0}
   - {key: takeover_bid, label: Takeover bid, importance: 1.0}
@@ -108,6 +136,7 @@ event_types:
   - {key: legal, label: Legal / litigation, importance: 0.5}
   - {key: divestment, label: Divestment, importance: 0.5}
   - {key: insider_trade, label: Insider trade, importance: 0.4}
+  - {key: ownership_stake, label: Major shareholder stake (5%+), importance: 0.5}
   - {key: buyback, label: Share buyback, importance: 0.4}
   - {key: dividend, label: Dividend, importance: 0.3}
   - {key: product, label: Product launch, importance: 0.3}

@@ -10,15 +10,18 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.collect.dedup import content_hash, url_hash
-from app.collect.fetchers import SourceSkipped, fetch_source
+from app.collect.fetchers import FetchContext, SourceSkipped, fetch_source
 from app.collect.parsers import FetchedItem
 from app.config import Settings
 from app.models import (
     Article,
+    ArticleAnalysis,
     ArticleCompany,
     Citation,
     Company,
+    CompanyAlias,
     Listing,
+    Setting,
     Source,
     StoryArticle,
     TrackedStock,
@@ -72,7 +75,7 @@ def collect(
             continue
         try:
             items = fetch_source(
-                client, source, settings, symbols=_symbols(session, topic, source.market), now=now
+                client, source, settings, ctx=_context(session, topic, source, now), now=now
             )
         except SourceSkipped as e:
             result.skipped = str(e)
@@ -90,6 +93,38 @@ def collect(
         source.last_error = None
         session.commit()
     return results
+
+
+def _context(
+    session: Session, topic: TopicConfig, source: Source, now: dt.datetime
+) -> FetchContext:
+    """Only what this source's fetcher uses, to keep the hourly run light."""
+    ctx = FetchContext(language=_briefing_language(session, topic))
+    if source.fetcher == "finnhub_company_news":
+        ctx.symbols = _symbols(session, topic, source.market)
+    if source.fetcher in ("sec_insiders", "fi_insider"):
+        ctx.known_urls = set(session.scalars(
+            select(Article.url_hash).where(
+                Article.source_id == source.id, Article.fetched_at >= now - MAX_ITEM_AGE * 2)
+        ))
+    if source.fetcher == "sec_insiders":
+        ctx.company_by_cik = dict(session.execute(
+            select(Company.cik, Company.id).where(
+                Company.topic == topic.key, Company.active, Company.cik.is_not(None))
+        ).all())
+    if source.fetcher == "fi_insider":
+        ctx.company_by_name = dict(session.execute(
+            select(CompanyAlias.alias_normalized, CompanyAlias.company_id)
+            .join(Company)
+            .where(Company.topic == topic.key, Company.active)
+        ).all())
+    return ctx
+
+
+def _briefing_language(session: Session, topic: TopicConfig) -> str:
+    stored = session.get(Setting, "briefing")
+    return (stored.value or {}).get("language", topic.briefing.language) if stored else (
+        topic.briefing.language)
 
 
 def _symbols(session: Session, topic: TopicConfig, market_key: str | None) -> list[str]:
@@ -125,6 +160,7 @@ def _store(
     languages: set[str],
 ) -> None:
     rows: dict[str, dict] = {}  # by url_hash; also dedups within this batch
+    tags: dict[str, dict | None] = {}
     for item in items:
         language = item.language or source.language
         if languages and language not in languages:
@@ -138,7 +174,9 @@ def _store(
         if h in rows:
             result.duplicates += 1
             continue
+        tags[h] = item.tag
         rows[h] = {
+            "tag_status": "tagged" if item.tag else (item.status or "pending"),
             "topic": source.topic,
             "source_id": source.id,
             "url": item.url,
@@ -172,16 +210,31 @@ def _store(
         fresh.append(row)
     if fresh:
         # ON CONFLICT covers two runs overlapping; the scheduler should prevent that anyway.
-        inserted = len(
-            session.execute(
-                insert(Article)
-                .values(fresh)
-                .on_conflict_do_nothing(index_elements=["url_hash"])
-                .returning(Article.id)
-            ).all()
-        )
-        result.new += inserted
-        result.duplicates += len(fresh) - inserted
+        inserted = session.execute(
+            insert(Article)
+            .values(fresh)
+            .on_conflict_do_nothing(index_elements=["url_hash"])
+            .returning(Article.id, Article.url_hash)
+        ).all()
+        result.new += len(inserted)
+        result.duplicates += len(fresh) - len(inserted)
+        _store_rule_tags(session, [(row.id, tags[row.url_hash]) for row in inserted])
+
+
+def _store_rule_tags(session: Session, rows: list[tuple[int, dict | None]]) -> None:
+    """Structured items (insider trades) arrive tagged by rules: store what the AI would."""
+    for article_id, tag in rows:
+        if not tag:
+            continue
+        session.add(ArticleAnalysis(
+            article_id=article_id, event_type=tag["event_type"], basis=tag["basis"],
+            sentiment=tag["sentiment"], importance=tag["importance"], summary=tag["summary"],
+            model="rules", prompt_version="rules-v1",
+        ))
+        session.add(ArticleCompany(
+            article_id=article_id, company_id=tag["company_id"], matched_alias=tag["matched"],
+            role="subject", sentiment=tag["sentiment"],
+        ))
 
 
 def prune_untagged(
