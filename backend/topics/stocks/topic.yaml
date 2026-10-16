@@ -91,6 +91,21 @@ sources:
       redistribution (finnhub.io/terms-of-service). One call per tracked US stock
       per run. Articles belong to their outlets; we keep headline + summary + link.
 
+  - key: svt-ekonomi
+    name: SVT Nyheter Ekonomi
+    kind: rss
+    fetcher: rss
+    url: https://www.svt.se/nyheter/ekonomi/rss.xml
+    market: SE
+    language: sv
+    enabled: true
+    terms_basis: >-
+      Public RSS feed offered by svt.se for its business news. SVT publishes no terms for
+      its feeds (checked 2026-10-16); its published rules cover republishing on social media
+      and press material, which this private app doesn't do. Same basis as mfn/cision:
+      personal, private use; headline + short excerpt + link only; polled at most hourly;
+      never republished. Sveriges Radio was considered and left out: its API terms forbid
+      storing, modifying and machine learning on its material (sverigesradio.se/artikel/api-villkor).
   - key: sec-insiders
     name: SEC insider trades and 5% stakes (Form 4, 13D/13G)
     kind: api

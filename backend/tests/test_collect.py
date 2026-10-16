@@ -182,5 +182,7 @@ def test_sources_and_markets_turned_off_in_settings_are_skipped(synced: Session)
     assert results["sec-8k"].skipped == "market US turned off in Settings"
     assert results["finnhub-news"].skipped == "market US turned off in Settings"
     assert results["cision-se"].new == 1
-    # Swedish sources still run: Cision and FI's insider register.
-    assert {r.url.host for r in feeds.requests} == {"news.cision.com", "marknadssok.fi.se"}
+    # Nothing from the source or market turned off is fetched; other Swedish sources run.
+    hosts = {r.url.host for r in feeds.requests}
+    assert hosts.isdisjoint({"mfn.se", "www.sec.gov", "finnhub.io"})
+    assert "news.cision.com" in hosts
