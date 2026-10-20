@@ -108,6 +108,11 @@ class LLMClient:
                 raise LLMError(f"unusable response (finish reason: {reason})") from e
             call.ok = True
             return result
+        except (httpx.TimeoutException, httpx.NetworkError) as e:
+            # No answer in time, or the connection dropped: like "high demand", worth a retry
+            # and then another model, not a reason to give up for the day.
+            call.error = f"{type(e).__name__}: {e}"[:500]
+            raise LLMUnavailable(call.error) from e
         except httpx.HTTPError as e:
             call.error = f"{type(e).__name__}: {e}"[:500]
             raise LLMError(call.error) from e

@@ -344,6 +344,21 @@ def test_last_resort_model_writes_when_both_are_busy(db: Session, news) -> None:
     assert tried == ["gemini-3.8-flash"] * 3 + ["gemini-3.5-flash"] * 3 + ["gemini-3.5-flash-lite"]
 
 
+def test_timeouts_are_retried_then_the_next_model_writes(db: Session, news) -> None:
+    """20 Oct: Gemini 3.8 didn't answer within the time limit and no briefing was written."""
+    good = FakeGemini(good_answer(news))
+
+    def slow_primary(request: httpx.Request) -> httpx.Response:
+        if f"/models/{SETTINGS.llm_briefing_model}:generateContent" in str(request.url):
+            raise httpx.ReadTimeout("The read operation timed out", request=request)
+        return good(request)
+
+    briefing = run(db, slow_primary)
+    assert briefing.model == SETTINGS.llm_briefing_fallback_model
+    calls = [(c.model, c.ok) for c in db.scalars(select(AICall).order_by(AICall.id))]
+    assert calls == [("gemini-3.8-flash", False)] * 3 + [("gemini-3.5-flash", True)]
+
+
 def test_all_models_busy_saves_nothing(db: Session, news) -> None:
     def busy(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": {"message": "high demand"}})
