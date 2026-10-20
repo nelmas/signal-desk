@@ -8,7 +8,9 @@ redistribution are not. So, like US prices, these are only shown inside this pri
 20 requests a day is enough because one request returns every day missing since the
 last fetch: a stock left out today simply catches up tomorrow. In priority order:
 1. the OMXS30 tracker (Facit compares Swedish ideas with it),
-2. Swedish ideas the track record is still following,
+2. Swedish ideas the track record is still following, but only on the days it needs
+   them: the entry day and each checkpoint (1, 5 and 20 trading days). That is about
+   four requests per idea instead of one every weekday,
 3. your Swedish watchlist,
 4. the day's top-scoring Swedish companies (for the price-reaction label).
 Before fetching, EODHD is asked how many of today's requests are left, and one is kept
@@ -25,15 +27,25 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.models import BenchmarkPrice, Company, Listing, PriceDaily, TrackedStock
+from app.models import (
+    BenchmarkPrice,
+    Company,
+    Idea,
+    IdeaOutcome,
+    Listing,
+    PriceDaily,
+    TrackedStock,
+)
 from app.prices import (
+    HORIZONS,
+    IDEA_FOLLOW_DAYS,
     PriceReport,
-    open_idea_listings,
     store_benchmark,
     store_listing,
     top_scorers,
 )
 from app.topic import TopicConfig
+from app.track import entry_day
 
 EOD_URL = "https://eodhd.com/api/eod/{symbol}"
 USER_URL = "https://eodhd.com/api/user"
@@ -96,13 +108,50 @@ def _fetch(client: httpx.Client, symbol: str, since: dt.date, until: dt.date, se
     ]
 
 
+def add_weekdays(day: dt.date, n: int) -> dt.date:
+    """The n-th weekday after `day` (holidays aren't known; a missing day is fetched later)."""
+    while n > 0:
+        day += dt.timedelta(days=1)
+        n -= day.weekday() < 5
+    return day
+
+
+def due_idea_listings(session: Session, se_mics: set[str], now: dt.datetime,
+                      target_day: dt.date) -> set[int]:
+    """Swedish ideas whose entry day or next checkpoint has come, without its price yet."""
+    done = (select(func.count()).select_from(IdeaOutcome)
+            .where(IdeaOutcome.idea_id == Idea.id).scalar_subquery())
+    have = (select(func.max(PriceDaily.date))
+            .where(PriceDaily.listing_id == Idea.listing_id).scalar_subquery())
+    rows = session.execute(
+        select(Idea.listing_id, Idea.published_at, Idea.entry_date, done.label("done"),
+               have.label("have"))
+        .join(Listing, Listing.id == Idea.listing_id)
+        .where(Listing.mic.in_(se_mics),
+               Idea.published_at >= now - dt.timedelta(days=IDEA_FOLLOW_DAYS),
+               done < len(HORIZONS))
+    ).all()
+    due = set()
+    for row in rows:
+        if row.have is not None and row.have >= target_day:
+            continue  # already has the latest session
+        if row.entry_date is None:
+            needed = entry_day(row.published_at, "SE")
+        else:  # checkpoints are scored in order, so the next one is HORIZONS[done]
+            needed = add_weekdays(row.entry_date, HORIZONS[row.done] - 1)
+        if needed <= target_day:
+            due.add(row.listing_id)
+    return due
+
+
 def _swedish_listings(session: Session, topic: TopicConfig, now: dt.datetime,
                       settings: Settings) -> list[Listing]:
-    """Ideas first, then the watchlist, then top scorers; each listing once."""
+    """Ideas due a price first, then the watchlist, then top scorers; each listing once."""
     se_mics = {mic for m in topic.markets if m.key == "SE" for mic in m.mics}
     base = select(Listing).join(Company).where(Company.topic == topic.key, Listing.mic.in_(se_mics))
+    due = due_idea_listings(session, se_mics, now, last_completed_session(now))
     groups = [
-        base.where(Listing.id.in_(open_idea_listings(now))),
+        base.where(Listing.id.in_(due)),
         base.where(Company.active, Listing.is_primary,
                    Company.id.in_(select(TrackedStock.company_id))),
         base.where(Company.active, Listing.is_primary,

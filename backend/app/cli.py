@@ -175,6 +175,22 @@ def score(top: int = 10) -> None:
 
 
 @app.command()
+def radar() -> None:
+    """Log today's Radar hits (early signals) as ideas for Facit."""
+    from app.db import get_sessionmaker
+    from app.radar import run_radar
+
+    with get_sessionmaker()() as session:
+        r = run_radar(session, get_topic())
+    typer.echo(
+        f"{r.candidates} candidates: {len(r.logged)} logged, {r.cooldown} logged recently, "
+        f"{r.capped} over today's cap"
+    )
+    for signal, name in r.logged:
+        typer.echo(f"  {signal.replace('_', ' ')}: {name}")
+
+
+@app.command()
 def prices() -> None:
     """Fetch daily prices: US from Twelve Data, Swedish from EODHD."""
     from app.collect.fetchers import make_client

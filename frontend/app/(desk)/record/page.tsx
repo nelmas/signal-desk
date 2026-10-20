@@ -5,6 +5,7 @@ import { shortDate, signed } from "@/lib/format";
 import type { Lang } from "@/lib/i18n";
 import { getDict } from "@/lib/lang";
 import { getTrackRecord } from "@/lib/queries";
+import { radarSummary } from "@/lib/radar";
 import {
   byConfidence,
   headlineHorizon,
@@ -49,13 +50,20 @@ export default async function RecordPage({ searchParams }: Props) {
     searchParams,
   ]);
   const r = t.record;
-  // The headline numbers answer "is the agent any good?"; your picks get their own row below.
+  // The headline numbers answer "is the agent any good?"; the Radar's signals and your
+  // own picks each get their own row in the comparison below.
   const ideas = all.filter((i) => i.origin === "agent");
-  const mine = all.filter((i) => i.origin === "user");
+  const groups = [
+    { label: r.agent, ideas },
+    { label: r.radarQuiet, ideas: all.filter((i) => i.signal === "quiet_good_news") },
+    { label: r.radarInsider, ideas: all.filter((i) => i.signal === "insider_buying") },
+    { label: r.mine, ideas: all.filter((i) => i.origin === "user") },
+  ].filter((g, n) => n === 0 || g.ideas.length > 0);
+  const who = { agent: r.whoAgent, radar: r.whoRadar, user: r.whoMe };
   const head = headlineHorizon(ideas);
   const headStats = head ? horizonStats(ideas, head) : null;
   const oldest = ideas.at(-1)?.briefing_date;
-  const compareAt = head ?? headlineHorizon(mine) ?? 1;
+  const compareAt = head ?? headlineHorizon(all) ?? 1;
   const pickNote = pick === "removed" ? t.pick.removed : undefined;
   const pickError = pick_error ? t.pick.errors[pick_error] : undefined;
 
@@ -165,12 +173,10 @@ export default async function RecordPage({ searchParams }: Props) {
             </div>
           )}
 
-          {mine.length > 0 && (
+          {groups.length > 1 && (
             <section className="panel section tbl-wrap record">
               <header>
-                <h2>
-                  {r.agent} · {r.mine}
-                </h2>
+                <h2>{r.compare}</h2>
                 <span className="eyebrow">{r.afterDays(compareAt)}</span>
               </header>
               <table>
@@ -185,7 +191,7 @@ export default async function RecordPage({ searchParams }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {([[r.agent, ideas], [r.mine, mine]] as const).map(([label, group]) => {
+                  {groups.map(({ label, ideas: group }) => {
                     const s = horizonStats(group, compareAt);
                     return (
                       <tr key={label}>
@@ -224,7 +230,7 @@ export default async function RecordPage({ searchParams }: Props) {
                   <tr key={i.id}>
                     <td className="mono">{shortDate(i.briefing_date, lang)}</td>
                     <td>
-                      {i.origin === "user" ? r.whoMe : r.whoAgent}
+                      {who[i.origin]}
                       {i.origin === "user" && !i.entry_date && (
                         <form action={removeMyPick}>
                           <input type="hidden" name="id" value={i.id} />
@@ -251,7 +257,9 @@ export default async function RecordPage({ searchParams }: Props) {
                         )}
                       </td>
                     ))}
-                    <td className="thesis">{i.thesis}</td>
+                    <td className="thesis">
+                      {i.origin === "radar" ? radarSummary(i.signal, i.details, lang) : i.thesis}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -4,8 +4,9 @@ Terms basis (twelvedata.com/terms, checked 2026-10-14): data for the customer's 
 internal, non-commercial use, displayed only to the customer, stored for that use, no
 redistribution. So prices are only ever shown inside this private app.
 
-Fetched: your watchlist, the day's top-scoring companies, every idea still being
-followed by the track record, and each market's benchmark (e.g. SPY). Anything that
+Fetched: your watchlist, the day's top-scoring companies, companies with strong
+positive news (so the Radar can tell whether the price has moved yet), every idea still
+being followed by the track record, and each market's benchmark (e.g. SPY). Anything that
 already has the last completed session is skipped, so the hourly job usually makes no
 requests at all.
 """
@@ -34,6 +35,8 @@ from app.models import (
     SignalScore,
     TrackedStock,
 )
+from app.radar import MIN_TONE
+from app.scoring.score import NOTABLE_NEWS
 from app.topic import TopicConfig
 
 log = logging.getLogger(__name__)
@@ -99,12 +102,31 @@ def top_scorers(session: Session, limit: int, mics: set[str]):
     )
 
 
+def positive_news(session: Session, limit: int, mics: set[str]):
+    """Today's companies with strong, clearly positive news, listed in one market."""
+    today = session.scalar(select(func.max(SignalScore.date)))
+    tone = SignalScore.components["factors"]["sentiment_shift"]["tone_24h"].as_float()
+    return (
+        select(SignalScore.company_id)
+        .join(Listing, (Listing.company_id == SignalScore.company_id) & Listing.is_primary)
+        .where(
+            SignalScore.date == today,
+            SignalScore.score >= NOTABLE_NEWS,
+            tone > MIN_TONE,
+            Listing.mic.in_(mics),
+        )
+        .order_by(SignalScore.score.desc())
+        .limit(limit)
+    )
+
+
 def _targets(
-    session: Session, topic: TopicConfig, top: int, now: dt.datetime
+    session: Session, topic: TopicConfig, settings: Settings, now: dt.datetime
 ) -> list[Listing]:
     us_mics = {mic for m in topic.markets if m.key == "US" for mic in m.mics}
     watched = select(TrackedStock.company_id)
-    top_ids = top_scorers(session, top, us_mics)
+    top_ids = top_scorers(session, settings.price_top_scorers, us_mics)
+    good_news = positive_news(session, settings.price_positive_news, us_mics)
     open_ideas = open_idea_listings(now)
     return list(
         session.scalars(
@@ -116,7 +138,11 @@ def _targets(
                 (
                     Company.active
                     & Listing.is_primary
-                    & (Company.id.in_(watched) | Company.id.in_(top_ids))
+                    & (
+                        Company.id.in_(watched)
+                        | Company.id.in_(top_ids)
+                        | Company.id.in_(good_news)
+                    )
                 )
                 | Listing.id.in_(open_ideas),
             )
@@ -161,7 +187,7 @@ def update_prices(
         return report
 
     target_day = last_completed_session(now)
-    listings = _targets(session, topic, settings.price_top_scorers, now)
+    listings = _targets(session, topic, settings, now)
     latest = dict(
         session.execute(
             select(PriceDaily.listing_id, func.max(PriceDaily.date))

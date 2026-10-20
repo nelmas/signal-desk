@@ -137,6 +137,8 @@ a.chip:hover { border-color: var(--ink-3); color: var(--ink); }
   padding-block: 16px; border-top: 1px solid var(--line); }
 .idea:first-child { border-top: 0; padding-top: 0; }
 .idea .name { display: grid; gap: 4px; align-content: start; }
+.buyers { margin: 6px 0 0; padding-left: 1.1rem; font-size: .88rem; color: var(--ink-2); }
+.idea > div { min-width: 0; overflow-wrap: break-word; }  /* long Swedish role titles */
 @media (max-width: 900px) { .idea { grid-template-columns: minmax(0, 1fr); gap: 8px; } }
 .conf { display: inline-flex; gap: 3px; align-items: center; font-size: .78rem; color: var(--ink-2); }
 .conf i { width: 14px; height: 6px; border-radius: 2px; background: var(--line); }

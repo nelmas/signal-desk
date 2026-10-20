@@ -4,6 +4,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { parseCursor } from "@/lib/paging";
+import type { RadarDetails } from "@/lib/radar";
 import { requireSession } from "@/lib/session";
 import type { RecordIdea } from "@/lib/record";
 import type {
@@ -176,11 +177,11 @@ export async function getTrackRecord(limit = 300): Promise<RecordIdea[]> {
                      as briefing_date
        from ideas i left join briefings b on b.id = i.briefing_id
      ), first as (
-       select distinct on (origin, company_id, briefing_date) *
+       select distinct on (origin, coalesce(signal, ''), company_id, briefing_date) *
        from dated
-       order by origin, company_id, briefing_date, published_at, id
+       order by origin, coalesce(signal, ''), company_id, briefing_date, published_at, id
      )
-     select i.id, i.origin, c.key, c.name, i.confidence, i.thesis, i.benchmark,
+     select i.id, i.origin, i.signal, i.details, c.key, c.name, i.confidence, i.thesis, i.benchmark,
             i.briefing_date::text as briefing_date, i.entry_date::text as entry_date,
             coalesce((select json_object_agg(o.horizon_days, json_build_object(
                         'ret', o.return_pct::float8,
@@ -194,4 +195,48 @@ export async function getTrackRecord(limit = 300): Promise<RecordIdea[]> {
     [limit],
   );
   return rows as RecordIdea[];
+}
+
+export type RadarSource = { id: number; title: string; url: string; source: string; published_at: string };
+export type RadarHit = {
+  id: number;
+  signal: string;
+  details: RadarDetails;
+  key: string;
+  name: string;
+  currency: string | null;
+  published_at: string;
+  entry_date: string | null;
+  entry_price: number | null;
+  last_close: number | null;
+};
+
+/** The Radar's hits of the last `days` days, newest first, with the articles behind them. */
+export async function getRadar(days = 30): Promise<{ hits: RadarHit[]; sources: Map<number, RadarSource> }> {
+  await requireSession();
+  const hits = (await db().query(
+    `select i.id, i.signal, i.details, c.key, c.name, l.currency,
+            to_char(i.published_at at time zone 'UTC', ${ISO}) as published_at,
+            i.entry_date::text as entry_date, i.entry_price::float8 as entry_price,
+            (select p.close::float8 from prices_daily p
+              where p.listing_id = i.listing_id and p.date >= i.entry_date
+              order by p.date desc limit 1) as last_close
+     from ideas i
+     join companies c on c.id = i.company_id
+     join listings l on l.id = i.listing_id
+     where i.origin = 'radar' and i.published_at >= now() - make_interval(days => $1)
+     order by i.published_at desc, i.id desc`,
+    [days],
+  )) as RadarHit[];
+  const ids = [...new Set(hits.flatMap((h) => h.details.article_ids ?? []))];
+  const rows = ids.length
+    ? ((await db().query(
+        `select a.id, a.title, a.url, coalesce(a.raw->>'outlet', s.name) as source,
+                to_char(a.published_at at time zone 'UTC', ${ISO}) as published_at
+         from articles a join sources s on s.id = a.source_id
+         where a.id = any($1::int[])`,
+        [ids],
+      )) as RadarSource[])
+    : [];
+  return { hits, sources: new Map(rows.map((r) => [r.id, r])) };
 }

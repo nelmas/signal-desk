@@ -1,5 +1,7 @@
 // Track record statistics, computed from each idea's stored outcomes.
 
+import type { RadarDetails } from "./radar";
+
 export const HORIZONS = [1, 5, 20] as const;
 export type Horizon = (typeof HORIZONS)[number];
 /** Below this many scored ideas, a hit rate says little; the page says so. */
@@ -9,8 +11,10 @@ export type Outcome = { ret: number; bench: number | null; excess: number | null
 
 export type RecordIdea = {
   id: number;
-  /** "agent": suggested by a briefing; "user": one of your own picks (no confidence). */
-  origin: "agent" | "user";
+  /** "agent": a briefing's idea; "radar": a Radar hit (see `signal`); "user": your own pick. */
+  origin: "agent" | "radar" | "user";
+  signal: string | null;
+  details: RadarDetails;
   key: string;
   name: string;
   confidence: "low" | "medium" | "high" | null;

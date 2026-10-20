@@ -329,18 +329,21 @@ class Citation(Base):
 
 
 class Idea(Base):
-    """A stock to research: suggested by a briefing ("agent") or picked by you ("user").
+    """A stock to research: suggested by a briefing ("agent"), flagged by the Radar's
+    rules ("radar", with the `signal` that fired), or picked by you ("user").
 
     Entry is the next session's open after publication (filled in later), so
     the track record never benefits from moves that happened before you could act.
-    Your own picks follow exactly the same rules, so Facit can compare the two.
+    Radar hits and your own picks follow exactly the same rules, so Facit can compare.
     """
 
     __tablename__ = "ideas"
     __table_args__ = (
         CheckConstraint("confidence IN ('low', 'medium', 'high')", name="confidence"),
-        CheckConstraint("origin IN ('agent', 'user')", name="origin"),
-        CheckConstraint("origin = 'user' OR briefing_id IS NOT NULL", name="agent_has_briefing"),
+        CheckConstraint("origin IN ('agent', 'radar', 'user')", name="origin"),
+        CheckConstraint("origin <> 'agent' OR briefing_id IS NOT NULL", name="agent_has_briefing"),
+        CheckConstraint("(origin = 'radar') = (signal IS NOT NULL)", name="radar_has_signal"),
+        Index("ix_ideas_radar", "company_id", "signal", "published_at"),  # the 20-day cooldown
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -351,6 +354,9 @@ class Idea(Base):
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     listing_id: Mapped[int] = mapped_column(ForeignKey("listings.id"))
     thesis: Mapped[str] = mapped_column(Text)  # your picks: your reason
+    # Radar only: which rule fired, and the evidence (article ids, numbers) behind it.
+    signal: Mapped[str | None] = mapped_column(String(30))
+    details: Mapped[dict[str, Any]] = mapped_column(server_default="{}")
     risks: Mapped[str] = mapped_column(Text, server_default="")
     confidence: Mapped[str | None] = mapped_column(String(10))
     benchmark: Mapped[str] = mapped_column(String(50))

@@ -70,6 +70,8 @@ jobs:
         run: uv run signal-desk evaluate-ideas
       - name: Score stocks
         run: uv run signal-desk score
+      - name: Radar (early signals, logged for Facit)
+        run: uv run signal-desk radar
       - name: Write morning briefing (once a day, after send time)
         run: uv run signal-desk briefing ${{ inputs.rewrite_briefing && '--force' || '--if-due' }}
       - name: Email the briefing (once, after it is written)

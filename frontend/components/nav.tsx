@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/", key: "briefing" },
   { href: "/watchlist", key: "watchlist" },
   { href: "/news", key: "news" },
+  { href: "/radar", key: "radar" },
   { href: "/record", key: "record" },
   { href: "/settings", key: "settings" },
 ] as const;

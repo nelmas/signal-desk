@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     price_requests_per_minute: int = 7
     price_requests_per_run: int = 40
     price_top_scorers: int = 15
+    # Also companies with strong positive news, so the Radar can see if the price moved.
+    price_positive_news: int = 30
     # Swedish prices: EODHD's free plan (20 requests/day, end-of-day, Stockholm incl.
     # First North). Personal, private use only; never shown outside this app.
     eodhd_api_key: str | None = None

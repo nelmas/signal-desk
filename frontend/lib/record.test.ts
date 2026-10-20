@@ -3,7 +3,7 @@ import { byConfidence, headlineHorizon, horizonStats, type RecordIdea } from "./
 
 function idea(id: number, confidence: RecordIdea["confidence"], outcomes: RecordIdea["outcomes"]): RecordIdea {
   return {
-    id, origin: "agent", key: `k${id}`, name: `N${id}`, confidence, thesis: "", benchmark: "S&P 500",
+    id, origin: "agent", signal: null, details: {}, key: `k${id}`, name: `N${id}`, confidence, thesis: "", benchmark: "S&P 500",
     briefing_date: "2026-10-15", entry_date: "2026-10-15", outcomes,
   };
 }
