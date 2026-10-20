@@ -19,11 +19,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 function pct(x: number | null, lang: Lang): string {
-  return x === null ? "–" : `${signed(x, 1, lang)} %`;
+  return x === null ? "–" : `${signed(x, 1, lang)}\u00a0%`; // never split "−2,6" from "%"
 }
 
 function share(x: number | null): string {
-  return x === null ? "–" : `${Math.round(x * 100)} %`;
+  return x === null ? "–" : `${Math.round(x * 100)}\u00a0%`;
 }
 
 function Result({ o, lang, vs }: { o: Outcome | undefined; lang: Lang; vs: (x: string) => string }) {
@@ -107,8 +107,8 @@ export default async function RecordPage({ searchParams }: Props) {
           )}
 
           {headStats && (
-            <div className="split">
-              <section className="panel section tbl-wrap">
+            <div className="split record-split">
+              <section className="panel section tbl-wrap record">
                 <header><h2>{r.byHorizon}</h2></header>
                 <table>
                   <thead>
@@ -136,7 +136,7 @@ export default async function RecordPage({ searchParams }: Props) {
                   </tbody>
                 </table>
               </section>
-              <section className="panel section tbl-wrap">
+              <section className="panel section tbl-wrap record">
                 <header>
                   <h2>{r.byConfidence}</h2>
                   <span className="eyebrow">{r.afterDays(headStats.horizon)}</span>
@@ -166,7 +166,7 @@ export default async function RecordPage({ searchParams }: Props) {
           )}
 
           {mine.length > 0 && (
-            <section className="panel section tbl-wrap">
+            <section className="panel section tbl-wrap record">
               <header>
                 <h2>
                   {r.agent} · {r.mine}
@@ -204,7 +204,7 @@ export default async function RecordPage({ searchParams }: Props) {
             </section>
           )}
 
-          <section className="panel section tbl-wrap">
+          <section className="panel section tbl-wrap record">
             <header><h2>{r.ideas}</h2></header>
             <table>
               <thead>
@@ -243,11 +243,15 @@ export default async function RecordPage({ searchParams }: Props) {
                         {i.outcomes[String(h)] ? (
                           <Result o={i.outcomes[String(h)]} lang={lang} vs={r.vsIndex} />
                         ) : (
-                          <span className="muted">{i.entry_date ? r.pending : r.noPrices}</span>
+                          i.entry_date ? (
+                          <span className="muted status">{r.pending}</span>
+                        ) : (
+                          <span className="muted" title={r.noPrices}>–</span>
+                        )
                         )}
                       </td>
                     ))}
-                    <td style={{ minWidth: "16rem" }}>{i.thesis}</td>
+                    <td className="thesis">{i.thesis}</td>
                   </tr>
                 ))}
               </tbody>

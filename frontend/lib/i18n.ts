@@ -456,7 +456,7 @@ const sv: Dict = {
     held: "Ägd",
     days: (h: number) => `${h} ${h === 1 ? "dag" : "dagar"}`,
     scored: "Bedömda",
-    avgReturn: "Snittavkastning",
+    avgReturn: "Snitt­avkastning",
     pending: "väntar",
     noPrices: "ingen kursdata",
     vsIndex: (x: string) => `${x} mot index`,

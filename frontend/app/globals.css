@@ -159,6 +159,16 @@ th { text-align: left; font-size: .72rem; font-weight: 600; line-height: 1.2; le
 td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 tr:last-child td { border-bottom: 0; }
 td.num, th.num { text-align: right; }
+/* Facit: headers may wrap and statuses are small, so the tables fit without sideways scrolling. */
+.record th { white-space: normal; hyphens: auto; letter-spacing: .04em; padding-inline: 6px; }
+.record td { padding-inline: 6px; }
+.record .status { font-size: .8rem; }
+.record td.thesis { min-width: 10rem; }
+@media (max-width: 1260px) { .split.record-split { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1150px) {
+  .record table { font-size: .9rem; }
+  .record td.thesis { min-width: 9rem; }
+}
 td a.row-link { text-decoration: none; font-weight: 600; }
 td a.row-link:hover { text-decoration: underline; }
 .ticker { font-family: var(--f-mono), monospace; font-size: .8rem; color: var(--ink-3); }
