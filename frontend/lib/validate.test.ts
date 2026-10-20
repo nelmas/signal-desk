@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBriefing, parseEmail, parseNote, parseToggles, parseWeights, type BriefingPrefs } from "./validate";
+import { parseBriefing, parseEmail, parseNote, parseReason, parseToggles, parseWeights, type BriefingPrefs } from "./validate";
 
 const form = (entries: Record<string, string>) => {
   const f = new FormData();
@@ -76,5 +76,15 @@ describe("toggles and notes", () => {
   it("trims and limits notes", () => {
     expect(parseNote("  ")).toBeNull();
     expect(parseNote("x".repeat(500))).toHaveLength(200);
+  });
+});
+
+describe("parseReason", () => {
+  it("tidies spaces and keeps 3 to 300 characters", () => {
+    expect(parseReason("  says   5x by\n2030 ")).toEqual({ ok: true, value: "says 5x by 2030" });
+    expect(parseReason("ok")).toEqual({ ok: false, error: "reason" });
+    expect(parseReason(null)).toEqual({ ok: false, error: "reason" });
+    expect(parseReason("x".repeat(301))).toEqual({ ok: false, error: "reason" });
+    expect(parseReason("x".repeat(300)).ok).toBe(true);
   });
 });

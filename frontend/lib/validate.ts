@@ -69,3 +69,10 @@ export function parseNote(value: FormDataEntryValue | null): string | null {
   const note = String(value ?? "").trim().slice(0, 200);
   return note || null;
 }
+
+/** The reason for one of your own picks (Facit): 3 to 300 characters, spaces tidied. */
+export function parseReason(value: FormDataEntryValue | null): Result<string> {
+  const reason = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (reason.length < 3 || reason.length > 300) return { ok: false, error: "reason" };
+  return { ok: true, value: reason };
+}

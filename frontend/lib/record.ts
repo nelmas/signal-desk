@@ -9,9 +9,11 @@ export type Outcome = { ret: number; bench: number | null; excess: number | null
 
 export type RecordIdea = {
   id: number;
+  /** "agent": suggested by a briefing; "user": one of your own picks (no confidence). */
+  origin: "agent" | "user";
   key: string;
   name: string;
-  confidence: "low" | "medium" | "high";
+  confidence: "low" | "medium" | "high" | null;
   thesis: string;
   benchmark: string;
   briefing_date: string;

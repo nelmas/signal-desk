@@ -329,26 +329,30 @@ class Citation(Base):
 
 
 class Idea(Base):
-    """A stock to research, as published in a briefing.
+    """A stock to research: suggested by a briefing ("agent") or picked by you ("user").
 
     Entry is the next session's open after publication (filled in later), so
     the track record never benefits from moves that happened before you could act.
+    Your own picks follow exactly the same rules, so Facit can compare the two.
     """
 
     __tablename__ = "ideas"
     __table_args__ = (
         CheckConstraint("confidence IN ('low', 'medium', 'high')", name="confidence"),
+        CheckConstraint("origin IN ('agent', 'user')", name="origin"),
+        CheckConstraint("origin = 'user' OR briefing_id IS NOT NULL", name="agent_has_briefing"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    briefing_id: Mapped[int] = mapped_column(
+    origin: Mapped[str] = mapped_column(String(10), server_default="agent")
+    briefing_id: Mapped[int | None] = mapped_column(
         ForeignKey("briefings.id", ondelete="CASCADE"), index=True
     )
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     listing_id: Mapped[int] = mapped_column(ForeignKey("listings.id"))
-    thesis: Mapped[str] = mapped_column(Text)
-    risks: Mapped[str] = mapped_column(Text)
-    confidence: Mapped[str] = mapped_column(String(10))
+    thesis: Mapped[str] = mapped_column(Text)  # your picks: your reason
+    risks: Mapped[str] = mapped_column(Text, server_default="")
+    confidence: Mapped[str | None] = mapped_column(String(10))
     benchmark: Mapped[str] = mapped_column(String(50))
     published_at: Mapped[dt.datetime]
     entry_date: Mapped[dt.date | None] = mapped_column(Date)

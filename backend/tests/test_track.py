@@ -124,3 +124,17 @@ def test_missing_benchmark_still_scores_the_idea(session: Session, idea: Idea) -
     one = outcomes(session, idea)[1]
     assert float(one.return_pct) == pytest.approx(3.0)
     assert one.benchmark_return_pct is None and one.excess_return_pct is None
+
+
+def test_your_own_picks_are_scored_by_the_same_rules(session: Session) -> None:
+    sync_topic(session, TOPIC, load_companies(TOPIC, STOCKS_DIR))
+    listing = session.scalars(select(Listing).where(Listing.symbol == "NVDA")).one()
+    pick = Idea(origin="user", company_id=listing.company_id, listing_id=listing.id,
+                thesis="Article says it could 5x by 2030", benchmark="S&P 500",
+                published_at=dt.datetime(2026, 10, 15, 6, 30, tzinfo=UTC))
+    session.add(pick)
+    session.commit()
+    add_prices(session, listing.id, weekdays(dt.date(2026, 10, 15), 1))
+    assert evaluate_ideas(session, TOPIC).scored == 1
+    session.refresh(pick)
+    assert pick.briefing_id is None and pick.entry_date == dt.date(2026, 10, 15)

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CompanyLink } from "@/components/bits";
+import { removeMyPick } from "@/app/(desk)/stock/[key]/actions";
 import { shortDate, signed } from "@/lib/format";
 import type { Lang } from "@/lib/i18n";
 import { getDict } from "@/lib/lang";
@@ -39,12 +40,24 @@ function Result({ o, lang, vs }: { o: Outcome | undefined; lang: Lang; vs: (x: s
   );
 }
 
-export default async function RecordPage() {
-  const [ideas, { lang, t }] = await Promise.all([getTrackRecord(), getDict()]);
+type Props = { searchParams: Promise<{ pick?: string; pick_error?: string }> };
+
+export default async function RecordPage({ searchParams }: Props) {
+  const [all, { lang, t }, { pick, pick_error }] = await Promise.all([
+    getTrackRecord(),
+    getDict(),
+    searchParams,
+  ]);
   const r = t.record;
+  // The headline numbers answer "is the agent any good?"; your picks get their own row below.
+  const ideas = all.filter((i) => i.origin === "agent");
+  const mine = all.filter((i) => i.origin === "user");
   const head = headlineHorizon(ideas);
   const headStats = head ? horizonStats(ideas, head) : null;
   const oldest = ideas.at(-1)?.briefing_date;
+  const compareAt = head ?? headlineHorizon(mine) ?? 1;
+  const pickNote = pick === "removed" ? t.pick.removed : undefined;
+  const pickError = pick_error ? t.pick.errors[pick_error] : undefined;
 
   return (
     <>
@@ -54,7 +67,10 @@ export default async function RecordPage() {
         <p>{r.intro}</p>
       </div>
 
-      {ideas.length === 0 ? (
+      {pickNote && <p className="notice" role="status" id="pick">{pickNote}</p>}
+      {pickError && <p className="error" role="alert" id="pick">{pickError}</p>}
+
+      {all.length === 0 ? (
         <p className="empty">{r.empty}</p>
       ) : (
         <>
@@ -149,12 +165,52 @@ export default async function RecordPage() {
             </div>
           )}
 
+          {mine.length > 0 && (
+            <section className="panel section tbl-wrap">
+              <header>
+                <h2>
+                  {r.agent} · {r.mine}
+                </h2>
+                <span className="eyebrow">{r.afterDays(compareAt)}</span>
+              </header>
+              <table>
+                <thead>
+                  <tr>
+                    <th>{r.byWho}</th>
+                    <th className="num">{r.logged}</th>
+                    <th className="num">{r.scored}</th>
+                    <th className="num">{r.beat}</th>
+                    <th className="num">{r.avgReturn}</th>
+                    <th className="num">{r.avgExcess}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {([[r.agent, ideas], [r.mine, mine]] as const).map(([label, group]) => {
+                    const s = horizonStats(group, compareAt);
+                    return (
+                      <tr key={label}>
+                        <td>{label}</td>
+                        <td className="num mono">{group.length}</td>
+                        <td className="num mono">{s.compared}</td>
+                        <td className="num mono">{share(s.beat)}</td>
+                        <td className="num mono">{pct(s.avgReturn, lang)}</td>
+                        <td className="num mono">{pct(s.avgExcess, lang)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="help">{r.compareNote}</p>
+            </section>
+          )}
+
           <section className="panel section tbl-wrap">
             <header><h2>{r.ideas}</h2></header>
             <table>
               <thead>
                 <tr>
                   <th>{r.cols.published}</th>
+                  <th>{r.byWho}</th>
                   <th>{r.cols.stock}</th>
                   <th>{r.cols.confidence}</th>
                   {HORIZONS.map((h) => (
@@ -164,14 +220,24 @@ export default async function RecordPage() {
                 </tr>
               </thead>
               <tbody>
-                {ideas.map((i) => (
+                {all.map((i) => (
                   <tr key={i.id}>
                     <td className="mono">{shortDate(i.briefing_date, lang)}</td>
+                    <td>
+                      {i.origin === "user" ? r.whoMe : r.whoAgent}
+                      {i.origin === "user" && !i.entry_date && (
+                        <form action={removeMyPick}>
+                          <input type="hidden" name="id" value={i.id} />
+                          <input type="hidden" name="back" value="/record" />
+                          <button className="btn small" type="submit">{r.remove}</button>
+                        </form>
+                      )}
+                    </td>
                     <td>
                       <CompanyLink k={i.key} name={i.name} />
                       <div className="ticker">{i.benchmark}</div>
                     </td>
-                    <td>{t.confidence[i.confidence] ?? i.confidence}</td>
+                    <td>{i.confidence ? t.confidence[i.confidence] : "–"}</td>
                     {HORIZONS.map((h) => (
                       <td key={h} className="num mono">
                         {i.outcomes[String(h)] ? (

@@ -170,12 +170,17 @@ export async function getTrackRecord(limit = 300): Promise<RecordIdea[]> {
   const rows = await db().query(
     // A company suggested twice on one day (e.g. the briefing rewritten in another
     // language) counts once: the first suggestion, so nothing is double counted.
-    `with first as (
-       select distinct on (i.company_id, b.date) i.*, b.date as briefing_date
-       from ideas i join briefings b on b.id = i.briefing_id
-       order by i.company_id, b.date, i.published_at, i.id
+    // Your own picks have no briefing; their day is the day you added them.
+    `with dated as (
+       select i.*, coalesce(b.date, (i.published_at at time zone 'Europe/Stockholm')::date)
+                     as briefing_date
+       from ideas i left join briefings b on b.id = i.briefing_id
+     ), first as (
+       select distinct on (origin, company_id, briefing_date) *
+       from dated
+       order by origin, company_id, briefing_date, published_at, id
      )
-     select i.id, c.key, c.name, i.confidence, i.thesis, i.benchmark,
+     select i.id, i.origin, c.key, c.name, i.confidence, i.thesis, i.benchmark,
             i.briefing_date::text as briefing_date, i.entry_date::text as entry_date,
             coalesce((select json_object_agg(o.horizon_days, json_build_object(
                         'ret', o.return_pct::float8,
