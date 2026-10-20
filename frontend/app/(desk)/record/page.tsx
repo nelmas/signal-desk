@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Fragment } from "react";
 import { CompanyLink } from "@/components/bits";
 import { removeMyPick } from "@/app/(desk)/stock/[key]/actions";
 import { shortDate, signed } from "@/lib/format";
@@ -217,12 +216,12 @@ export default async function RecordPage({ searchParams }: Props) {
                   {HORIZONS.map((h) => (
                     <th key={h} className="num">{r.days(h)}</th>
                   ))}
+                  <th>{r.cols.thesis}</th>
                 </tr>
               </thead>
               <tbody>
                 {all.map((i) => (
-                  <Fragment key={i.id}>
-                  <tr className="has-thesis">
+                  <tr key={i.id}>
                     <td className="mono">{shortDate(i.briefing_date, lang)}</td>
                     <td>
                       {i.origin === "user" ? r.whoMe : r.whoAgent}
@@ -248,14 +247,8 @@ export default async function RecordPage({ searchParams }: Props) {
                         )}
                       </td>
                     ))}
+                    <td style={{ minWidth: "16rem" }}>{i.thesis}</td>
                   </tr>
-                  {/* Its own full-width row, so a long reason never needs sideways scrolling. */}
-                  <tr>
-                    <td colSpan={4 + HORIZONS.length} className="thesis">
-                      <span className="eyebrow">{r.cols.thesis}</span> {i.thesis}
-                    </td>
-                  </tr>
-                  </Fragment>
                 ))}
               </tbody>
             </table>
